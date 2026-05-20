@@ -2,12 +2,16 @@
 #define HPP_LEXICALCAST
 
 #include <sstream>
+#include <stdexcept>
 
 template <typename T>
 T fromString(const std::string s) {
 	std::istringstream ss(s);
-	T t;
+	T t{};
 	ss >> t;
+	if (ss.fail() || !ss.eof()) {
+		throw std::runtime_error("invalid numeric argument: " + s);
+	}
 	return t;
 }
 

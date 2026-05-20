@@ -1,0 +1,1 @@
+version,date,device_name,opencl_vendor,command,worksize_local,inverse_multiple,worksize_max,speed_mhs,init_seconds,build_ok,notes

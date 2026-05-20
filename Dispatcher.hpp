@@ -77,7 +77,7 @@ class Dispatcher {
 		};
 
 	public:
-		Dispatcher(cl_context & clContext, cl_program & clProgram, const Mode mode, const size_t worksizeMax, const size_t inverseSize, const size_t inverseMultiple, const cl_uchar clScoreQuit = 0, const std::string & outputFile = NULL, const std::string & postUrl = NULL);
+		Dispatcher(cl_context & clContext, cl_program & clProgram, const Mode mode, const size_t worksizeMax, const size_t inverseSize, const size_t inverseMultiple, const cl_uchar clScoreQuit = 0, const std::string & postUrl = std::string());
 		~Dispatcher();
 
 		void addDevice(cl_device_id clDeviceId, const size_t worksizeLocal, const size_t index);
@@ -103,6 +103,7 @@ class Dispatcher {
 		static void CL_CALLBACK staticCallback(cl_event event, cl_int event_command_exec_status, void * user_data);
 
 		static std::string formatSpeed(double s);
+		static size_t clampWorkSize(const size_t requested, const size_t maxWorkGroupSize);
 
 	private: /* Instance variables */
 		cl_context & m_clContext;
@@ -113,7 +114,6 @@ class Dispatcher {
 		const size_t m_size;
 		cl_uchar m_clScoreMax;
 		cl_uchar m_clScoreQuit;
-		std::string m_outputFile;
 		std::string m_postUrl;
 
 		std::vector<Device *> m_vDevices;

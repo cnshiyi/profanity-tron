@@ -1,8 +1,20 @@
 # Makefile artifacts
 *.o
+*.obj
+*.exe
+*.dll
+*.lib
 *.so
-.DS_store
-cache-opencl.*
+.DS_Store
+*.x64
+*_stdout.txt
+*_stderr.txt
+*.exp
+*.def
+opencl_exports.txt
+experiments/tmp/
 bin
 profanity.x64
+profanity_build.exe
+result.txt
 README_dev.md

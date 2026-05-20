@@ -24,6 +24,7 @@
 #include "ArgParser.hpp"
 #include "Mode.hpp"
 #include "help.hpp"
+#include "OpenCLLoader.hpp"
 #include "kernel_profanity.hpp"
 #include "kernel_sha256.hpp"
 #include "kernel_keccak.hpp"
@@ -100,32 +101,6 @@ std::vector<T> clGetWrapperVector(U function, V param, W param2)
 	return v;
 }
 
-std::vector<std::string> getBinaries(cl_program &clProgram)
-{
-	std::vector<std::string> vReturn;
-	auto vSizes = clGetWrapperVector<size_t>(clGetProgramInfo, clProgram, CL_PROGRAM_BINARY_SIZES);
-	if (!vSizes.empty())
-	{
-		unsigned char **pBuffers = new unsigned char *[vSizes.size()];
-		for (size_t i = 0; i < vSizes.size(); ++i)
-		{
-			pBuffers[i] = new unsigned char[vSizes[i]];
-		}
-
-		clGetProgramInfo(clProgram, CL_PROGRAM_BINARIES, vSizes.size() * sizeof(unsigned char *), pBuffers, NULL);
-		for (size_t i = 0; i < vSizes.size(); ++i)
-		{
-			std::string strData(reinterpret_cast<char *>(pBuffers[i]), vSizes[i]);
-			vReturn.push_back(strData);
-			delete[] pBuffers[i];
-		}
-
-		delete[] pBuffers;
-	}
-
-	return vReturn;
-}
-
 unsigned int getUniqueDeviceIdentifier(const cl_device_id &deviceId)
 {
 #if defined(CL_DEVICE_TOPOLOGY_AMD)
@@ -153,40 +128,98 @@ bool printResult(const cl_int err)
 	return err != CL_SUCCESS;
 }
 
-std::string getDeviceCacheFilename(cl_device_id &d, const size_t &inverseSize)
+bool hasCliSwitch(int argc, char **argv, const std::initializer_list<const char *> &names)
 {
-	const auto uniqueId = getUniqueDeviceIdentifier(d);
-	return "cache-opencl." + toString(inverseSize) + "." + toString(uniqueId);
+	for (int i = 1; i < argc; ++i)
+	{
+		for (const auto &name : names)
+		{
+			if (std::string(argv[i]) == name)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void autoTuneForDevices(
+	const std::vector<cl_device_id> &devices,
+	const bool userSetWorksizeLocal,
+	const bool userSetInverseMultiple,
+	size_t &worksizeLocal,
+	size_t &inverseMultiple)
+{
+	if (devices.empty() || (userSetWorksizeLocal && userSetInverseMultiple))
+	{
+		return;
+	}
+
+	size_t tunedWorksizeLocal = worksizeLocal;
+	size_t tunedInverseMultiple = inverseMultiple;
+
+	for (const auto &deviceId : devices)
+	{
+		const auto vendor = clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_VENDOR);
+		const auto name = clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_NAME);
+		const auto maxWorkGroupSize = clGetWrapper<size_t>(clGetDeviceInfo, deviceId, CL_DEVICE_MAX_WORK_GROUP_SIZE);
+		const auto globalMemSize = clGetWrapper<cl_ulong>(clGetDeviceInfo, deviceId, CL_DEVICE_GLOBAL_MEM_SIZE);
+		const bool isNvidia = vendor.find("NVIDIA") != std::string::npos || name.find("NVIDIA") != std::string::npos;
+		const bool hasEnoughMemory = globalMemSize >= (cl_ulong)6 * 1024 * 1024 * 1024;
+
+		if (!userSetWorksizeLocal && isNvidia)
+		{
+			tunedWorksizeLocal = (std::min)(tunedWorksizeLocal == 0 ? maxWorkGroupSize : (std::max)(tunedWorksizeLocal, (size_t)512), maxWorkGroupSize);
+		}
+		else if (!userSetWorksizeLocal)
+		{
+			tunedWorksizeLocal = (std::min)(tunedWorksizeLocal == 0 ? maxWorkGroupSize : (std::max)(tunedWorksizeLocal, (size_t)128), maxWorkGroupSize);
+		}
+
+		if (!userSetInverseMultiple && isNvidia && hasEnoughMemory)
+		{
+			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (size_t)32768);
+		}
+	}
+
+	if (!userSetWorksizeLocal)
+	{
+		worksizeLocal = tunedWorksizeLocal;
+	}
+
+	if (!userSetInverseMultiple)
+	{
+		inverseMultiple = tunedInverseMultiple;
+	}
 }
 
 int main(int argc, char **argv)
 {
 	try
 	{
+		OpenCLLoader::ensureLoaded();
 		ArgParser argp(argc, argv);
 		bool bHelp = false;
 
 		std::string matchingInput;
-		std::string outputFile;
-		// localhost test post url, 
-		// rember change it to your own business api url.
-		std::string postUrl = "http://127.0.0.1:7002/api/address";
+		std::string postUrl;
 		std::vector<size_t> vDeviceSkipIndex;
 		size_t worksizeLocal = 64;
 		size_t worksizeMax = 0;
-		bool bNoCache = false;
 		size_t inverseSize = 255;
 		size_t inverseMultiple = 16384;
 		size_t prefixCount = 0;
 		size_t suffixCount = 6;
 		size_t quitCount = 0;
+		const bool userSetWorksizeLocal = hasCliSwitch(argc, argv, {"-w", "--work"});
+		const bool userSetWorksizeMax = hasCliSwitch(argc, argv, {"-W", "--work-max"});
+		const bool userSetInverseMultiple = hasCliSwitch(argc, argv, {"-I", "--inverse-multiple"});
 
 		argp.addSwitch('h', "help", bHelp);
 		argp.addSwitch('m', "matching", matchingInput);
 		argp.addSwitch('w', "work", worksizeLocal);
 		argp.addSwitch('W', "work-max", worksizeMax);
-		argp.addSwitch('n', "no-cache", bNoCache);
-		argp.addSwitch('o', "output", outputFile);
 		argp.addSwitch('p', "post", postUrl);
 		argp.addSwitch('i', "inverse-size", inverseSize);
 		argp.addSwitch('I', "inverse-multiple", inverseMultiple);
@@ -210,6 +243,12 @@ int main(int argc, char **argv)
 		if (matchingInput.empty())
 		{
 			std::cout << "error: matching file must be specified :<" << std::endl;
+			return 1;
+		}
+
+		if (!postUrl.empty())
+		{
+			std::cout << "error: --post has been disabled for security reasons because it can leak private keys :<" << std::endl;
 			return 1;
 		}
 
@@ -250,10 +289,7 @@ int main(int argc, char **argv)
 		std::vector<cl_device_id> vDevices;
 		std::map<cl_device_id, size_t> mDeviceIndex;
 
-		std::vector<std::string> vDeviceBinary;
-		std::vector<size_t> vDeviceBinarySize;
 		cl_int errorCode;
-		bool bUsedCache = false;
 
 		std::cout << "Devices:" << std::endl;
 		for (size_t i = 0; i < vFoundDevices.size(); ++i)
@@ -266,20 +302,7 @@ int main(int argc, char **argv)
 			const auto strName = clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_NAME);
 			const auto computeUnits = clGetWrapper<cl_uint>(clGetDeviceInfo, deviceId, CL_DEVICE_MAX_COMPUTE_UNITS);
 			const auto globalMemSize = clGetWrapper<cl_ulong>(clGetDeviceInfo, deviceId, CL_DEVICE_GLOBAL_MEM_SIZE);
-			bool precompiled = false;
-
-			if (!bNoCache)
-			{
-				std::ifstream fileIn(getDeviceCacheFilename(deviceId, inverseSize), std::ios::binary);
-				if (fileIn.is_open())
-				{
-					vDeviceBinary.push_back(std::string((std::istreambuf_iterator<char>(fileIn)), std::istreambuf_iterator<char>()));
-					vDeviceBinarySize.push_back(vDeviceBinary.back().size());
-					precompiled = true;
-				}
-			}
-
-			std::cout << "  GPU-" << i << ": " << strName << ", " << globalMemSize << " bytes available, " << computeUnits << " compute units (precompiled = " << (precompiled ? "yes" : "no") << ")" << std::endl;
+			std::cout << "  GPU-" << i << ": " << strName << ", " << globalMemSize << " bytes available, " << computeUnits << " compute units" << std::endl;
 			vDevices.push_back(vFoundDevices[i]);
 			mDeviceIndex[vFoundDevices[i]] = i;
 		}
@@ -287,6 +310,17 @@ int main(int argc, char **argv)
 		if (vDevices.empty())
 		{
 			return 1;
+		}
+
+		autoTuneForDevices(vDevices, userSetWorksizeLocal, userSetInverseMultiple, worksizeLocal, inverseMultiple);
+
+		if (!userSetWorksizeLocal || !userSetInverseMultiple || !userSetWorksizeMax)
+		{
+			std::cout << std::endl;
+			std::cout << "Tuning:" << std::endl;
+			std::cout << "  work = " << worksizeLocal << std::endl;
+			std::cout << "  inverse-multiple = " << inverseMultiple << std::endl;
+			std::cout << "  work-max = " << (worksizeMax == 0 ? inverseSize * inverseMultiple : worksizeMax) << std::endl;
 		}
 
 		std::cout << std::endl;
@@ -299,35 +333,12 @@ int main(int argc, char **argv)
 		}
 
 		cl_program clProgram;
-		if (vDeviceBinary.size() == vDevices.size())
+		std::cout << "  Kernel compiling ..." << std::flush;
+		const char *szKernels[] = { kernel_keccak.c_str(), kernel_sha256.c_str(), kernel_profanity.c_str() };
+		clProgram = clCreateProgramWithSource(clContext, sizeof(szKernels) / sizeof(char *), szKernels, NULL, &errorCode);
+		if (printResult(clProgram, errorCode))
 		{
-			// Create program from binaries
-			bUsedCache = true;
-
-			std::cout << "  Binary kernel loading..." << std::flush;
-			const unsigned char **pKernels = new const unsigned char *[vDevices.size()];
-			for (size_t i = 0; i < vDeviceBinary.size(); ++i)
-			{
-				pKernels[i] = reinterpret_cast<const unsigned char *>(vDeviceBinary[i].data());
-			}
-
-			cl_int *pStatus = new cl_int[vDevices.size()];
-
-			clProgram = clCreateProgramWithBinary(clContext, vDevices.size(), vDevices.data(), vDeviceBinarySize.data(), pKernels, pStatus, &errorCode);
-			if (printResult(clProgram, errorCode))
-			{
-				return 1;
-			}
-		}
-		else
-		{
-			std::cout << "  Kernel compiling ..." << std::flush;
-			const char *szKernels[] = { kernel_keccak.c_str(), kernel_sha256.c_str(), kernel_profanity.c_str() };
-			clProgram = clCreateProgramWithSource(clContext, sizeof(szKernels) / sizeof(char *), szKernels, NULL, &errorCode);
-			if (printResult(clProgram, errorCode))
-			{
-				return 1;
-			}
+			return 1;
 		}
 
 		// Build the program
@@ -338,22 +349,9 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		// Save binary to improve future start times
-		if (!bUsedCache && !bNoCache)
-		{
-			std::cout << "  Program saving ..." << std::flush;
-			auto binaries = getBinaries(clProgram);
-			for (size_t i = 0; i < binaries.size(); ++i)
-			{
-				std::ofstream fileOut(getDeviceCacheFilename(vDevices[i], inverseSize), std::ios::binary);
-				fileOut.write(binaries[i].data(), binaries[i].size());
-			}
-			std::cout << "Done" << std::endl;
-		}
-
 		std::cout << std::endl;
 
-		Dispatcher d(clContext, clProgram, mode, worksizeMax == 0 ? inverseSize * inverseMultiple : worksizeMax, inverseSize, inverseMultiple, quitCount, outputFile, postUrl);
+		Dispatcher d(clContext, clProgram, mode, worksizeMax == 0 ? inverseSize * inverseMultiple : worksizeMax, inverseSize, inverseMultiple, quitCount, postUrl);
 
 		for (auto &i : vDevices)
 		{

@@ -1,12 +1,8 @@
 ## profanity-tron
 
-- `windows` 下可直接运行 `start.bat` 启动程式。
-- 请参考项目 `README.md` 参数介绍，自行编辑 `start.bat` 配置软件运行参数。
-- 设备有集成显卡的，请添加 `--skip 1` 把集成显卡过滤之，否则可能会导致：1. 跑不起来，2. 生成的地址和私钥不匹配。
-- 如果提示 `vcruntime140_1.dll` 相关异常，请安装 `visual studio` 应用程序，官方下载链接：[https://visualstudio.microsoft.com/zh-hans/vs/](https://visualstudio.microsoft.com/zh-hans/vs/)
-- 关于软件运行速度，以及诸如跑什么规则的地址需要多长时间等问题，请阅读项目主页 `README.md` 速度章节说明。
-
-## 遇到问题？
-
-> 如果有问题，请首先参考项目主页文档说明：[https://github.com/GG4mida/profanity-tron](https://github.com/GG4mida/profanity-tron)
-> 如果还有问题实在无法解决，请联系作者：[@jackslowfak](https://t.me/jackslowfak)。
+- 当前仓库按源码优先维护，请不要信任来路不明的预编译可执行文件。
+- 构建完成后请直接运行程序本体，例如：`profanity.exe --matching profanity.txt --suffix-count 6`
+- 如果机器同时有集成显卡，可以尝试 `--skip 1`，避免选错设备。
+- `--post` 已因安全原因禁用，因为它可能泄露私钥。
+- OpenCL 二进制缓存加载已因安全原因移除。
+- 如果 Windows 提示 `vcruntime140_1.dll` 相关错误，请安装 Visual Studio 运行时：[https://visualstudio.microsoft.com/zh-hans/vs/](https://visualstudio.microsoft.com/zh-hans/vs/)

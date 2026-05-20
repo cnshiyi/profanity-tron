@@ -8,9 +8,18 @@
 #include <iomanip>
 #include <random>
 #include <algorithm>
+#include <array>
 
 #include "precomp.hpp"
-#include <curl/curl.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <bcrypt.h>
+#pragma comment(lib, "bcrypt.lib")
+#elif defined(__APPLE__) || defined(__MACOSX)
+#include <Security/Security.h>
+#else
+#include <fstream>
+#endif
 
 static const uint8_t base58Alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -138,19 +147,34 @@ cl_kernel Dispatcher::Device::createKernel(cl_program &clProgram, const std::str
 // ref: https://medium.com/amber-group/exploiting-the-profanity-flaw-e986576de7ab
 cl_ulong4 Dispatcher::Device::createSeed()
 {
-	// Randomize private keys
-	std::random_device rd;
-	std::mt19937_64 eng1(rd());
-	std::mt19937_64 eng2(rd());
-	std::mt19937_64 eng3(rd());
-	std::mt19937_64 eng4(rd());
-	std::uniform_int_distribution<cl_ulong> distr;
-
 	cl_ulong4 r;
-	r.s[0] = distr(eng1);
-	r.s[1] = distr(eng2);
-	r.s[2] = distr(eng3);
-	r.s[3] = distr(eng4);
+	const size_t seedSize = sizeof(r.s);
+
+#ifdef _WIN32
+	const NTSTATUS status = BCryptGenRandom(NULL, reinterpret_cast<PUCHAR>(&r.s[0]), (ULONG)seedSize, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+	if (status < 0)
+	{
+		throw std::runtime_error("failed to get secure random bytes from BCryptGenRandom");
+	}
+#elif defined(__APPLE__) || defined(__MACOSX)
+	if (SecRandomCopyBytes(kSecRandomDefault, seedSize, reinterpret_cast<uint8_t *>(&r.s[0])) != errSecSuccess)
+	{
+		throw std::runtime_error("failed to get secure random bytes from SecRandomCopyBytes");
+	}
+#else
+	std::ifstream urandom("/dev/urandom", std::ios::in | std::ios::binary);
+	if (!urandom.is_open())
+	{
+		throw std::runtime_error("failed to open /dev/urandom");
+	}
+
+	urandom.read(reinterpret_cast<char *>(&r.s[0]), seedSize);
+	if (urandom.gcount() != static_cast<std::streamsize>(seedSize))
+	{
+		throw std::runtime_error("failed to read secure random bytes from /dev/urandom");
+	}
+#endif
+
 	return r;
 }
 
@@ -190,6 +214,26 @@ Dispatcher::Device::Device(
 
 Dispatcher::Device::~Device()
 {
+	if (m_kernelScore != NULL)
+	{
+		clReleaseKernel(m_kernelScore);
+	}
+	if (m_kernelIterate != NULL)
+	{
+		clReleaseKernel(m_kernelIterate);
+	}
+	if (m_kernelInverse != NULL)
+	{
+		clReleaseKernel(m_kernelInverse);
+	}
+	if (m_kernelInit != NULL)
+	{
+		clReleaseKernel(m_kernelInit);
+	}
+	if (m_clQueue != NULL)
+	{
+		clReleaseCommandQueue(m_clQueue);
+	}
 }
 
 Dispatcher::Dispatcher(cl_context &clContext,
@@ -199,7 +243,6 @@ Dispatcher::Dispatcher(cl_context &clContext,
 					   const size_t inverseSize,
 					   const size_t inverseMultiple,
 					   const cl_uchar clScoreQuit,
-						 const std::string & outputFile,
 						 const std::string & postUrl)
 	: m_clContext(clContext),
 	  m_clProgram(clProgram),
@@ -209,7 +252,6 @@ Dispatcher::Dispatcher(cl_context &clContext,
 	  m_size(inverseSize * inverseMultiple),
 	  m_clScoreMax(mode.score),
 	  m_clScoreQuit(clScoreQuit),
-		m_outputFile(outputFile),
 		m_postUrl(postUrl),
 	  m_eventFinished(NULL),
 	  m_countPrint(0)
@@ -218,6 +260,11 @@ Dispatcher::Dispatcher(cl_context &clContext,
 
 Dispatcher::~Dispatcher()
 {
+	for (auto *device : m_vDevices)
+	{
+		delete device;
+	}
+	m_vDevices.clear();
 }
 
 void Dispatcher::addDevice(
@@ -244,7 +291,7 @@ void Dispatcher::run()
 
 	std::cout << std::endl;
 	std::cout << "Running..." << std::endl;
-	std::cout << "  Before using a generated address, pls always verify that it matches the printed private key." << std::endl;
+	std::cout << "  Before using a generated address, pls always verify generated key material independently." << std::endl;
 	std::cout << "  Please make sure the program you are running is download from: https://github.com/GG4mida/profanity-tron" << std::endl;
 	std::cout << "  And always multi-sign the address to ensure account security. " << std::endl;
 	std::cout << std::endl;
@@ -436,50 +483,15 @@ void Dispatcher::dispatch(Device &d)
 	OpenCLException::throwIfError("failed to set custom callback", res);
 }
 
-static void writeResult(const std::string& privateKey, const std::string& address, const std::string& outputFile) {
-	if (!outputFile.empty()) {
-		std::ofstream fileStream(outputFile, std::ios_base::app);
-		if (!fileStream.is_open()) {
-			std::cerr << "Error: failed to open result file " << outputFile << " :<" << std::endl;
-			return;
-		}
-
-		std::string content = privateKey + "," + address + "\n";
-		fileStream << content;
-		fileStream.close();
-	}
-}
-
-static size_t handlePostOutput(void* ptr, size_t size, size_t nmemb, void* stream)
-{
-	(void)ptr;
-	(void)stream;
-	return size * nmemb;
-}
-
 static void postResult(const std::string& privateKey, const std::string& address, const std::string& postUrl) {
 	if (!postUrl.empty()) {
-		CURL* curl;
-		std::string sendData = "privatekey=" + privateKey + "&address=" + address;
-		std::string sendUrl = postUrl + "?" + sendData;
-		try {
-			curl_global_init(CURL_GLOBAL_DEFAULT);
-			curl = curl_easy_init();
-			if (curl) {
-				curl_easy_setopt(curl, CURLOPT_URL, sendUrl.c_str());
-				curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 3000);
-				curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-				curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-				curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-				curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &handlePostOutput);
-
-				curl_easy_perform(curl);
-				curl_easy_cleanup(curl);
-			}
-			curl_global_cleanup();
-		}
-		catch (...) {
-			std::cout << "error: unknown exception occured while post data :<" << std::endl;
+		(void)privateKey;
+		(void)address;
+		(void)postUrl;
+		static bool warned = false;
+		if (!warned) {
+			std::cout << "warning: --post is disabled for security reasons and no data will be sent" << std::endl;
+			warned = true;
 		}
 	}
 }
@@ -491,8 +503,7 @@ static void printResult(
 	cl_uchar score,
 	const std::chrono::time_point<std::chrono::steady_clock> &timeStart,
 	const Mode & mode,
-	const std::string & outputFile = NULL,
-	const std::string & postUrl = NULL)
+	const std::string & postUrl = std::string())
 {
 	// Time delta
 	const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - timeStart).count();
@@ -522,11 +533,7 @@ static void printResult(
 
 	// Print
 	const std::string strVT100ClearLine = "\33[2K\r";
-	std::cout << strVT100ClearLine << "  Time: " << std::setw(5) << seconds << "s Private: " << strPrivate << " Address:" << strPublicTron << std::endl;
-	
-	if(!outputFile.empty()) {
-		writeResult(strPrivate, strPublicTron, outputFile);
-	}
+	std::cout << strVT100ClearLine << "  Time: " << std::setw(5) << seconds << "s Address:" << strPublicTron << std::endl;
 
 	if(!postUrl.empty()) {
 		postResult(strPrivate, strPublicTron, postUrl);
@@ -555,7 +562,7 @@ void Dispatcher::handleResult(Device &d)
 					m_quit = true;
 				}
 
-				printResult(d.m_clSeed, d.m_round, r, i, timeStart, m_mode, m_outputFile, m_postUrl);
+				printResult(d.m_clSeed, d.m_round, r, i, timeStart, m_mode, m_postUrl);
 			}
 
 			break;
