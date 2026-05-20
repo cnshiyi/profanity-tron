@@ -144,6 +144,26 @@ bool hasCliSwitch(int argc, char **argv, const std::initializer_list<const char 
 	return false;
 }
 
+size_t clampWorkgroupCandidate(size_t candidate, size_t maxWorkGroupSize)
+{
+	if (candidate == 0 || maxWorkGroupSize == 0)
+	{
+		return 0;
+	}
+
+	if (candidate > maxWorkGroupSize)
+	{
+		candidate = maxWorkGroupSize;
+	}
+
+	while (candidate > 1 && (maxWorkGroupSize % candidate) != 0)
+	{
+		candidate >>= 1;
+	}
+
+	return candidate;
+}
+
 void autoTuneForDevices(
 	const std::vector<cl_device_id> &devices,
 	const bool userSetWorksizeLocal,
@@ -166,26 +186,59 @@ void autoTuneForDevices(
 		const auto maxWorkGroupSize = clGetWrapper<size_t>(clGetDeviceInfo, deviceId, CL_DEVICE_MAX_WORK_GROUP_SIZE);
 		const auto globalMemSize = clGetWrapper<cl_ulong>(clGetDeviceInfo, deviceId, CL_DEVICE_GLOBAL_MEM_SIZE);
 		const bool isNvidia = vendor.find("NVIDIA") != std::string::npos || name.find("NVIDIA") != std::string::npos;
+		const bool isAmd = vendor.find("Advanced Micro Devices") != std::string::npos || vendor.find("AMD") != std::string::npos || name.find("AMD") != std::string::npos;
+		const bool isIntel = vendor.find("Intel") != std::string::npos || name.find("Intel") != std::string::npos;
 		const bool hasEnoughMemory = globalMemSize >= (cl_ulong)6 * 1024 * 1024 * 1024;
+		size_t candidateWorksizeLocal = 64;
 
-		if (!userSetWorksizeLocal && isNvidia)
+		if (isNvidia)
 		{
-			tunedWorksizeLocal = (std::min)(tunedWorksizeLocal == 0 ? maxWorkGroupSize : (std::max)(tunedWorksizeLocal, (size_t)512), maxWorkGroupSize);
+			candidateWorksizeLocal = 256;
 		}
-		else if (!userSetWorksizeLocal)
+		else if (isAmd)
 		{
-			tunedWorksizeLocal = (std::min)(tunedWorksizeLocal == 0 ? maxWorkGroupSize : (std::max)(tunedWorksizeLocal, (size_t)128), maxWorkGroupSize);
+			candidateWorksizeLocal = 128;
+		}
+		else if (isIntel)
+		{
+			candidateWorksizeLocal = 64;
+		}
+		else
+		{
+			candidateWorksizeLocal = 64;
+		}
+
+		candidateWorksizeLocal = clampWorkgroupCandidate(candidateWorksizeLocal, maxWorkGroupSize);
+
+		if (!userSetWorksizeLocal)
+		{
+			if (tunedWorksizeLocal == 0)
+			{
+				tunedWorksizeLocal = candidateWorksizeLocal;
+			}
+			else
+			{
+				tunedWorksizeLocal = (std::min)(tunedWorksizeLocal, candidateWorksizeLocal);
+			}
 		}
 
 		if (!userSetInverseMultiple && isNvidia && hasEnoughMemory)
 		{
 			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (size_t)32768);
 		}
+		else if (!userSetInverseMultiple && isAmd && hasEnoughMemory)
+		{
+			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (size_t)24576);
+		}
+		else if (!userSetInverseMultiple && isIntel)
+		{
+			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (size_t)8192);
+		}
 	}
 
 	if (!userSetWorksizeLocal)
 	{
-		worksizeLocal = tunedWorksizeLocal;
+		worksizeLocal = tunedWorksizeLocal == 0 ? worksizeLocal : tunedWorksizeLocal;
 	}
 
 	if (!userSetInverseMultiple)
