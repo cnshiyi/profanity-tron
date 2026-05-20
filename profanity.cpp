@@ -176,7 +176,7 @@ void autoTuneForDevices(
 		return;
 	}
 
-	size_t tunedWorksizeLocal = worksizeLocal;
+	size_t tunedWorksizeLocal = 0;
 	size_t tunedInverseMultiple = inverseMultiple;
 
 	for (const auto &deviceId : devices)
@@ -193,11 +193,11 @@ void autoTuneForDevices(
 
 		if (isNvidia)
 		{
-			candidateWorksizeLocal = 256;
+			candidateWorksizeLocal = hasEnoughMemory ? 512 : 256;
 		}
 		else if (isAmd)
 		{
-			candidateWorksizeLocal = 128;
+			candidateWorksizeLocal = hasEnoughMemory ? 256 : 128;
 		}
 		else if (isIntel)
 		{

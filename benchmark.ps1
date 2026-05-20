@@ -5,10 +5,16 @@ param(
     [int]$PrefixCount = 1,
     [int]$SuffixCount = 1,
     [int]$QuitCount = 1,
-    [string]$Notes = ""
+    [string]$Notes = "",
+    [switch]$BuildFirst
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($BuildFirst)
+{
+    & (Join-Path $PSScriptRoot "build.ps1")
+}
 
 $command = "$ExePath --matching $Matching --prefix-count $PrefixCount --suffix-count $SuffixCount --quit-count $QuitCount"
 $stdoutPath = Join-Path $PSScriptRoot "experiments\\tmp\\benchmark_stdout.txt"

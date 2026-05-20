@@ -1,3 +1,5 @@
 version,date,device_name,opencl_vendor,command,worksize_local,inverse_multiple,worksize_max,speed_mhs,init_seconds,build_ok,notes
 perf-v002,2026-05-21 03:00:00,NVIDIA GeForce RTX 3070,NVIDIA,".\profanity.x64.exe --matching TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D --prefix-count 1 --suffix-count 1 --quit-count 1",512,32768,8355840,60.128,3,True,"跨设备自动调优第一版"
 perf-v002,2026-05-21 03:08:08,NVIDIA GeForce RTX 3070,NVIDIA,".\\profanity.x64.exe --matching TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D --prefix-count 1 --suffix-count 1 --quit-count 1",512,32768,8355840,60.128,3,True,"跨设备自动调优第一版"
+perf-v003,2026-05-21 03:17:49,NVIDIA GeForce RTX 3070,NVIDIA,".\\profanity.x64.exe --matching TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D --prefix-count 1 --suffix-count 1 --quit-count 1",512,32768,8355840,59.312,3,True,"restore tuned local work size and trim init result clears"
+perf-v003,2026-05-21 03:20:55,NVIDIA GeForce RTX 3070,NVIDIA,".\\profanity.x64.exe --matching TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D --prefix-count 1 --suffix-count 1 --quit-count 1",512,32768,8355840,58.517,3,True,"激进优化: 仅由前121个 work-item 初始化结果区"

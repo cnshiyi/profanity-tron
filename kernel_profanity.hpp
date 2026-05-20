@@ -359,8 +359,8 @@ __kernel void profanity_init(__global const point * const precomp, __global mp_n
 	pDeltaX[id] = p.x;
 	pPrevLambda[id] = tmp1;
 
-	for (uchar i = 0; i < PROFANITY_MAX_SCORE + 1; ++i) {
-		pResult[i].found = 0;
+	if (id <= PROFANITY_MAX_SCORE) {
+		pResult[id].found = 0;
 	}
 }
 
