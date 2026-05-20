@@ -58,6 +58,7 @@
 总表维护在:
 
 - `experiments/benchmark_summary.csv`
+- `experiments/TARGET_BASELINE.md`
 
 字段:
 
@@ -97,6 +98,15 @@
 4. 不允许覆盖历史 benchmark
 5. 不允许重复使用版本号
 6. 不允许跳过实验记录直接提交
+
+## 外部对标目标
+
+当前外部样本 `gd_gpu.exe` 在 RTX 3070 上的 `8A lianhao` 实测速率约为:
+
+- 稳定区间: `248 ~ 250 MH/s`
+- 峰值: `250.193 MH/s`
+
+后续优化除了和本仓库历史最佳版本比较，还必须同步评估与该对标目标的距离。
 
 ## 当前基线定义
 
