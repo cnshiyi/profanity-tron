@@ -101,20 +101,6 @@ std::vector<T> clGetWrapperVector(U function, V param, W param2)
 	return v;
 }
 
-unsigned int getUniqueDeviceIdentifier(const cl_device_id &deviceId)
-{
-#if defined(CL_DEVICE_TOPOLOGY_AMD)
-	auto topology = clGetWrapper<cl_device_topology_amd>(clGetDeviceInfo, deviceId, CL_DEVICE_TOPOLOGY_AMD);
-	if (topology.raw.type == CL_DEVICE_TOPOLOGY_TYPE_PCIE_AMD)
-	{
-		return (topology.pcie.bus << 16) + (topology.pcie.device << 8) + topology.pcie.function;
-	}
-#endif
-	cl_int bus_id = clGetWrapper<cl_int>(clGetDeviceInfo, deviceId, CL_DEVICE_PCI_BUS_ID_NV);
-	cl_int slot_id = clGetWrapper<cl_int>(clGetDeviceInfo, deviceId, CL_DEVICE_PCI_SLOT_ID_NV);
-	return (bus_id << 16) + slot_id;
-}
-
 template <typename T>
 bool printResult(const T &t, const cl_int &err)
 {
@@ -186,18 +172,14 @@ void autoTuneForDevices(
 		const auto maxWorkGroupSize = clGetWrapper<size_t>(clGetDeviceInfo, deviceId, CL_DEVICE_MAX_WORK_GROUP_SIZE);
 		const auto globalMemSize = clGetWrapper<cl_ulong>(clGetDeviceInfo, deviceId, CL_DEVICE_GLOBAL_MEM_SIZE);
 		const bool isNvidia = vendor.find("NVIDIA") != std::string::npos || name.find("NVIDIA") != std::string::npos;
-		const bool isAmd = vendor.find("Advanced Micro Devices") != std::string::npos || vendor.find("AMD") != std::string::npos || name.find("AMD") != std::string::npos;
 		const bool isIntel = vendor.find("Intel") != std::string::npos || name.find("Intel") != std::string::npos;
 		const bool hasEnoughMemory = globalMemSize >= (cl_ulong)6 * 1024 * 1024 * 1024;
+		const bool hasLargeBatchMemory = globalMemSize >= (cl_ulong)15 * 1024 * 1024 * 1024 / 2;
 		size_t candidateWorksizeLocal = 64;
 
 		if (isNvidia)
 		{
-			candidateWorksizeLocal = hasEnoughMemory ? 512 : 256;
-		}
-		else if (isAmd)
-		{
-			candidateWorksizeLocal = hasEnoughMemory ? 256 : 128;
+			candidateWorksizeLocal = hasLargeBatchMemory ? 128 : (hasEnoughMemory ? 512 : 256);
 		}
 		else if (isIntel)
 		{
@@ -222,13 +204,13 @@ void autoTuneForDevices(
 			}
 		}
 
-		if (!userSetInverseMultiple && isNvidia && hasEnoughMemory)
+		if (!userSetInverseMultiple && isNvidia && hasLargeBatchMemory)
+		{
+			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (size_t)237568);
+		}
+		else if (!userSetInverseMultiple && isNvidia && hasEnoughMemory)
 		{
 			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (size_t)32768);
-		}
-		else if (!userSetInverseMultiple && isAmd && hasEnoughMemory)
-		{
-			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (size_t)24576);
 		}
 		else if (!userSetInverseMultiple && isIntel)
 		{
@@ -353,6 +335,13 @@ int main(int argc, char **argv)
 			}
 			cl_device_id &deviceId = vFoundDevices[i];
 			const auto strName = clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_NAME);
+			const auto strVendor = clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_VENDOR);
+			const bool isAmd = strVendor.find("Advanced Micro Devices") != std::string::npos || strVendor.find("AMD") != std::string::npos || strName.find("AMD") != std::string::npos;
+			if (isAmd)
+			{
+				std::cout << "  GPU-" << i << ": " << strName << " skipped (AMD support removed)" << std::endl;
+				continue;
+			}
 			const auto computeUnits = clGetWrapper<cl_uint>(clGetDeviceInfo, deviceId, CL_DEVICE_MAX_COMPUTE_UNITS);
 			const auto globalMemSize = clGetWrapper<cl_ulong>(clGetDeviceInfo, deviceId, CL_DEVICE_GLOBAL_MEM_SIZE);
 			std::cout << "  GPU-" << i << ": " << strName << ", " << globalMemSize << " bytes available, " << computeUnits << " compute units" << std::endl;

@@ -60,10 +60,6 @@ if ($deviceName -match "NVIDIA")
 {
     $vendor = "NVIDIA"
 }
-elseif ($deviceName -match "AMD|Radeon")
-{
-    $vendor = "AMD"
-}
 elseif ($deviceName -match "Intel")
 {
     $vendor = "Intel"
