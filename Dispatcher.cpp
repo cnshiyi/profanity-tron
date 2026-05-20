@@ -23,6 +23,18 @@
 
 static const uint8_t base58Alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
+static cl_uchar base58IndexOf(const cl_uchar c)
+{
+	for (cl_uchar i = 0; i < 58; ++i)
+	{
+		if (base58Alphabet[i] == c)
+		{
+			return i;
+		}
+	}
+	return 0xff;
+}
+
 static std::string base58Encode(const std::vector<uint8_t> &data)
 {
 	std::vector<uint8_t> digits((data.size() * 138 / 100) + 1);
@@ -373,6 +385,10 @@ void Dispatcher::initBegin(Device &d)
 	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 5, m_mode.matchingCount);
 	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 6, m_mode.prefixCount);
 	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 7, m_mode.suffixCount);
+	const cl_uchar suffixMatchIndex = (m_mode.matchingCount == 1 && m_mode.suffixCount == 1 && m_mode.data1.size() >= 20 && m_mode.data1[19] == 0xff)
+		? base58IndexOf(m_mode.data2[19])
+		: 0xff;
+	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 8, suffixMatchIndex);
 	
 	// Seed device
 	initContinue(d);

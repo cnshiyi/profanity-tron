@@ -465,6 +465,29 @@ void profanity_result_update(
 	}
 }
 
+#define BASE58_MOD58_WORD(input, offset) (((((uint)(input)[offset] << 24) | ((uint)(input)[(offset) + 1] << 16) | ((uint)(input)[(offset) + 2] << 8) | (uint)(input)[(offset) + 3])) % 58)
+
+uint base58_last_index_from_ethhash(__global const uchar *ethhash) {
+	uchar hash0[21];
+	uchar hash1[32];
+	uint rem = 65 % 58;
+	hash0[0] = 65;
+
+	for (uint i = 0; i < 20; i++) {
+		hash0[i + 1] = ethhash[i];
+	}
+
+	sha256(sizeof(hash0), hash0, hash1);
+	const uint checksumFirstWord = sha256_first_word(sizeof(hash1), hash1);
+	rem = (rem * 16 + BASE58_MOD58_WORD(ethhash, 0)) % 58;
+	rem = (rem * 16 + BASE58_MOD58_WORD(ethhash, 4)) % 58;
+	rem = (rem * 16 + BASE58_MOD58_WORD(ethhash, 8)) % 58;
+	rem = (rem * 16 + BASE58_MOD58_WORD(ethhash, 12)) % 58;
+	rem = (rem * 16 + BASE58_MOD58_WORD(ethhash, 16)) % 58;
+	rem = (rem * 16 + (checksumFirstWord % 58)) % 58;
+	return rem;
+}
+
 __kernel void profanity_score_matching(
 	__global mp_number * const pInverse, 
 	__global result * const pResult, 
@@ -473,32 +496,37 @@ __kernel void profanity_score_matching(
 	const uchar scoreMax, 
 	const uchar matchingCount, 
 	const uchar prefixCount, 
-	const uchar suffixCount)
+	const uchar suffixCount,
+	const uchar suffixMatchIndex)
 {
 	const size_t id = get_global_id(0);
 	__global const uchar * hash = pInverse[id].d;
 
+	if (matchingCount == 1 && prefixCount <= 1 && suffixCount == 1) {
+		const uchar mask = data1[19];
+		const uint suffixIndex = base58_last_index_from_ethhash(hash);
+		if (mask == 0xff && suffixIndex == suffixMatchIndex) {
+			profanity_result_update(id, hash, pResult, scoreMax);
+		} else if (mask > 0 && mask != 0xff && (alphabet[suffixIndex] & mask) == data2[19]) {
+			profanity_result_update(id, hash, pResult, scoreMax);
+		}
+		return;
+	}
+
 	uchar tron_hash[25];
 	ethhash_to_tronhash(hash, tron_hash);
+
 	char tron_hash_address[34];
  	base58_encode(tron_hash, tron_hash_address, 25);
 	
-	char matchingHash[20];
-	uint j = 0;
-	for (uint i = 0; i < 34; i++) {
-		if(i < 10 || i >= 24) {
-			matchingHash[j] = tron_hash_address[i];
-			j++;
-		}
-	}
 	for(uint j = 0; j < matchingCount; j++) {
 		uint scorePrefix = 1;
 		uint scoreSuffix = 0;
-		uint dataIndex = 0;
+		const uint dataBase = j * 20;
 		if(prefixCount > 1) {
-			for (uint i = 1; i < 10; ++i) {
-				dataIndex = j * 20 + i;
-				if (data1[dataIndex] > 0 && (matchingHash[i] & data1[dataIndex]) == data2[dataIndex]) {
+			for (uint i = 1; i < 10 && scorePrefix < prefixCount; ++i) {
+				const uint dataIndex = dataBase + i;
+				if (data1[dataIndex] > 0 && (tron_hash_address[i] & data1[dataIndex]) == data2[dataIndex]) {
 					++scorePrefix;
 				} else {
 					break;
@@ -506,9 +534,10 @@ __kernel void profanity_score_matching(
 			}
 		}
 		if(suffixCount > 0) {
-			for (uint i = 19; i > 10; --i) {
-				dataIndex = j * 20 + i;
-				if (data1[dataIndex] > 0 && (matchingHash[i] & data1[dataIndex]) == data2[dataIndex]) {
+			for (uint i = 19; i > 10 && scoreSuffix < suffixCount; --i) {
+				const uint dataIndex = dataBase + i;
+				const uint addressIndex = i + 14;
+				if (data1[dataIndex] > 0 && (tron_hash_address[addressIndex] & data1[dataIndex]) == data2[dataIndex]) {
 					++scoreSuffix;
 				} else {
 					break;
