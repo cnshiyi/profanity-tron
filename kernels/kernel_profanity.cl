@@ -534,6 +534,7 @@ __kernel void profanity_score_matching(
 	__global result * const pResult, 
 	__constant const uchar * const data1, 
 	__constant const uchar * const data2, 
+	__constant const uchar * const suffix1Allowed,
 	const uchar scoreMax, 
 	const uchar matchingCount, 
 	const uchar prefixCount, 
@@ -562,13 +563,8 @@ __kernel void profanity_score_matching(
 
 	if (matchingCount > 1 && prefixCount <= 1 && suffixCount == 1) {
 		const uint suffixIndex = base58_last_index_from_ethhash(hash);
-		for (uint j = 0; j < matchingCount; ++j) {
-			const uint dataIndex = j * 20 + 19;
-			const uchar mask = data1[dataIndex];
-			if (mask > 0 && (alphabet[suffixIndex] & mask) == data2[dataIndex]) {
-				profanity_result_update(id, hash, pResult, scoreMax);
-				break;
-			}
+		if (suffix1Allowed[suffixIndex]) {
+			profanity_result_update(id, hash, pResult, scoreMax);
 		}
 		return;
 	}

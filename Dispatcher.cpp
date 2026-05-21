@@ -233,6 +233,7 @@ Dispatcher::Device::Device(
 	  m_memResult(clContext, m_clQueue, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, PROFANITY_MAX_SCORE + 1),
 	  m_memData1(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, 20 * mode.matchingCount),
 	  m_memData2(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, 20 * mode.matchingCount),
+	  m_memSuffix1Allowed(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, 58),
 	  m_clSeed(createSeed()),
 	  m_round(0),
 	  m_speed(PROFANITY_SPEEDSAMPLES),
@@ -416,11 +417,37 @@ void Dispatcher::initBegin(Device &d)
 		d.m_memData1[i] = m_mode.data1[i];
 		d.m_memData2[i] = m_mode.data2[i];
 	}
+	for (cl_uchar i = 0; i < 58; ++i)
+	{
+		d.m_memSuffix1Allowed[i] = 0;
+	}
+	if (m_mode.matchingCount > 1 && m_mode.prefixCount <= 1 && m_mode.suffixCount == 1)
+	{
+		for (size_t j = 0; j < m_mode.matchingCount; ++j)
+		{
+			const size_t dataIndex = j * 20 + 19;
+			const cl_uchar mask = m_mode.data1[dataIndex];
+			if (mask == 0)
+			{
+				continue;
+			}
+
+			const cl_uchar expected = m_mode.data2[dataIndex];
+			for (cl_uchar idx = 0; idx < 58; ++idx)
+			{
+				if ((base58Alphabet[idx] & mask) == expected)
+				{
+					d.m_memSuffix1Allowed[idx] = 1;
+				}
+			}
+		}
+	}
 
 	// Write precompute table and mode data
 	d.m_memPrecomp.write(true);
 	d.m_memData1.write(true);
 	d.m_memData2.write(true);
+	d.m_memSuffix1Allowed.write(true);
 
 	// Kernel arguments - profanity_begin
 	cl_kernel &kernelInit = d.m_kernelInit;
@@ -447,16 +474,17 @@ void Dispatcher::initBegin(Device &d)
 	d.m_memResult.setKernelArg(d.m_kernelScore, 1);
 	d.m_memData1.setKernelArg(d.m_kernelScore, 2);
 	d.m_memData2.setKernelArg(d.m_kernelScore, 3);
-	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 4, d.m_clScoreMax);
-	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 5, m_mode.matchingCount);
-	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 6, m_mode.prefixCount);
-	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 7, m_mode.suffixCount);
+	d.m_memSuffix1Allowed.setKernelArg(d.m_kernelScore, 4);
+	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 5, d.m_clScoreMax);
+	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 6, m_mode.matchingCount);
+	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 7, m_mode.prefixCount);
+	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 8, m_mode.suffixCount);
 	const cl_uchar suffixMatchIndex = (m_mode.matchingCount == 1 && m_mode.suffixCount == 1 && m_mode.data1.size() >= 20 && m_mode.data1[19] == 0xff)
 		? base58IndexOf(m_mode.data2[19])
 		: 0xff;
-	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 8, suffixMatchIndex);
-	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 9, m_range.enabled ? 1 : 0);
-	CLMemory<cl_ulong>::setKernelArg(d.m_kernelScore, 10, m_range.counterMax == 0 ? 0 : (m_range.counterMax - 1));
+	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 9, suffixMatchIndex);
+	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 10, m_range.enabled ? 1 : 0);
+	CLMemory<cl_ulong>::setKernelArg(d.m_kernelScore, 11, m_range.counterMax == 0 ? 0 : (m_range.counterMax - 1));
 	
 	// Seed device
 	initContinue(d);
@@ -629,7 +657,7 @@ void Dispatcher::handleResult(Device &d)
 		if (r.found > 0 && i >= d.m_clScoreMax)
 		{
 			d.m_clScoreMax = i;
-			CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 4, d.m_clScoreMax);
+			CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 5, d.m_clScoreMax);
 
 			std::lock_guard<std::mutex> lock(m_mutex);
 			if (i >= m_clScoreMax)

@@ -83,6 +83,7 @@ class Dispatcher {
 			// Data parameters used in some modes
 			CLMemory<cl_uchar> m_memData1;
 			CLMemory<cl_uchar> m_memData2;
+			CLMemory<cl_uchar> m_memSuffix1Allowed;
 
 			// Seed and round information
 			cl_ulong4 m_clSeed;
