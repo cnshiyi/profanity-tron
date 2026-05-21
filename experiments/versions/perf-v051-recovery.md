@@ -78,6 +78,37 @@ codex/recovered-perf-v051
 - 独立 `private -> TRON address` 验证：`verified=3 mismatched=0`。
 - 当前环境短测复现速度约 `358-360 MH/s`，暂未稳定复现历史 `410.025 MH/s`。
 
+2026-05-22 继续复测：
+
+```powershell
+C:\Users\399\Desktop\profanity-tron-perf051-exact\profanity.x64.exe --no-cache --matching C:\Users\399\Desktop\profanity-tron\runtime\multi10_targets.txt --prefix-count 0 --suffix-count 1 --benchmark-seconds 5
+```
+
+连续三次结果：
+
+- `357.523 MH/s`
+- `357.726 MH/s`
+- `357.324 MH/s`
+
+60 秒结果：
+
+```powershell
+C:\Users\399\Desktop\profanity-tron-perf051-exact\profanity.x64.exe --no-cache --matching C:\Users\399\Desktop\profanity-tron\runtime\multi10_targets.txt --prefix-count 0 --suffix-count 1 --benchmark-seconds 60
+```
+
+- `355.314 MH/s`
+
+旧二进制短测结果：
+
+- `profanity-tron-perf051-exact`: `359.535 MH/s`
+- `profanity-tron-perf051-recover`: `358.041 MH/s`
+- 当前主线 `profanity-tron`: `357.622 MH/s`
+- `profanity-tron-release-build-v102`: `354.377 MH/s`
+- `Downloads\profanity-tron-windows-1.0.2`: `364.733 MH/s`
+- `profanity-tron-release-build-v101`: `162.103 MH/s`
+
+这些结果说明：已经恢复的 `perf-v051` 源码路径在当前机器状态下稳定可跑，但当前环境暂时没有复现历史 `408-410 MH/s` 的运行态。
+
 ## 当前未复现 410 的初步判断
 
 源码路径已经找回；当前复现低于历史 410，更像是运行环境差异或 OpenCL/NVIDIA 编译状态差异，而不是源代码没有恢复。
@@ -88,6 +119,9 @@ codex/recovered-perf-v051
 - P-state 负载下多为 `P2`。
 - SM clock 约 `1920-1950 MHz`。
 - Memory clock 约 `6801 MHz`。
+- 当前 NVIDIA driver: `591.86`。
+- 当前 power limit: `240 W`。
+- 尝试设置 `nvidia-smi -pl 270` 被权限拒绝，设置未改变。
 - 当前短测结果约 `358-360 MH/s`。
 
 后续复现方向：
