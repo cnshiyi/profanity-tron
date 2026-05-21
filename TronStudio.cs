@@ -46,6 +46,7 @@ namespace ProfanityTronStudio
         private readonly string rootDir;
         private readonly string exePath;
         private readonly string runtimeDir;
+        private readonly string runOutputDir;
         private readonly string defaultOutputPath;
         private readonly string defaultTargetsPath;
 
@@ -73,6 +74,7 @@ namespace ProfanityTronStudio
         private readonly TextBox logBox;
         private readonly Timer pollTimer;
         private readonly HashSet<string> seenHits = new HashSet<string>(StringComparer.Ordinal);
+        private readonly HashSet<string> importedRunHits = new HashSet<string>(StringComparer.Ordinal);
 
         private Process runningProcess;
         private int runningProcessId;
@@ -87,10 +89,12 @@ namespace ProfanityTronStudio
             rootDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             exePath = Path.Combine(rootDir, "profanity.x64.exe");
             runtimeDir = Path.Combine(rootDir, "runtime");
-            defaultOutputPath = Path.Combine(runtimeDir, "hits.txt");
+            runOutputDir = Path.Combine(runtimeDir, "runs");
+            defaultOutputPath = Path.Combine(runtimeDir, "hits_all.txt");
             defaultTargetsPath = Path.Combine(runtimeDir, "targets.txt");
             lastOutputPath = defaultOutputPath;
             Directory.CreateDirectory(runtimeDir);
+            Directory.CreateDirectory(runOutputDir);
 
             Text = UiText.T("6CE2 573A 9753 53F7 751F 6210 5DE5 5177");
             Width = 1495;
@@ -352,19 +356,29 @@ namespace ProfanityTronStudio
                 return;
             }
 
-            var outDir = Path.GetDirectoryName(outputPath);
-            if (!string.IsNullOrWhiteSpace(outDir)) Directory.CreateDirectory(outDir);
-            File.WriteAllText(outputPath, string.Empty, Encoding.UTF8);
-            lastOutputPath = outputPath;
+            var permanentOutputPath = outputPath;
+            var permanentOutDir = Path.GetDirectoryName(permanentOutputPath);
+            if (!string.IsNullOrWhiteSpace(permanentOutDir)) Directory.CreateDirectory(permanentOutDir);
+            if (!File.Exists(permanentOutputPath))
+            {
+                File.WriteAllText(permanentOutputPath, string.Empty, Encoding.UTF8);
+            }
+
+            Directory.CreateDirectory(runOutputDir);
+            lastOutputPath = CreateRunOutputPath();
+            File.WriteAllText(lastOutputPath, string.Empty, Encoding.UTF8);
 
             seenHits.Clear();
+            importedRunHits.Clear();
             hitCount = 0;
             hitCountValue.Text = "0";
             resultGrid.Rows.Clear();
             logBox.Clear();
 
-            var arguments = BuildArguments(matching, outputPath);
+            var arguments = BuildArguments(matching, lastOutputPath);
             AddLog(UiText.T("542F 52A8 547D 4EE4 3A 20") + "\"" + exePath + "\" " + arguments);
+            AddLog("本次临时文件: " + lastOutputPath);
+            AddLog("长期保存文件: " + permanentOutputPath);
 
             var startInfo = new ProcessStartInfo
             {
@@ -451,6 +465,12 @@ namespace ProfanityTronStudio
             return string.Join(" ", args.Select(QuoteArgument));
         }
 
+        private string CreateRunOutputPath()
+        {
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            return Path.Combine(runOutputDir, "hits_" + stamp + ".txt");
+        }
+
         private static string QuoteArgument(string value)
         {
             if (value.IndexOfAny(new[] { ' ', '\t', '"' }) < 0) return value;
@@ -464,6 +484,7 @@ namespace ProfanityTronStudio
             if (proc == null)
             {
                 KillResidualGeneratorProcesses();
+                ImportHitsFromFile(lastOutputPath);
                 pollTimer.Stop();
                 SetRunningState(false);
                 return;
@@ -483,6 +504,7 @@ namespace ProfanityTronStudio
 
             CloseRunningJob();
             KillResidualGeneratorProcesses();
+            ImportHitsFromFile(lastOutputPath);
             DisposeProcess(proc);
 
             pollTimer.Stop();
@@ -507,7 +529,7 @@ namespace ProfanityTronStudio
 
         private void OpenOutputFile()
         {
-            var path = outputBox.Text.Trim();
+            var path = GetPermanentOutputPath();
             if (File.Exists(path))
             {
                 Process.Start("notepad.exe", "\"" + path + "\"");
@@ -516,6 +538,12 @@ namespace ProfanityTronStudio
             {
                 AddLog(UiText.T("8F93 51FA 6587 4EF6 4E0D 5B58 5728 3A 20") + path, true);
             }
+        }
+
+        private string GetPermanentOutputPath()
+        {
+            var path = outputBox.Text.Trim();
+            return string.IsNullOrWhiteSpace(path) ? defaultOutputPath : path;
         }
 
         private void CopyAllResults()
@@ -593,7 +621,15 @@ namespace ProfanityTronStudio
         private void ImportHitsFromFile(string path)
         {
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
-            foreach (var line in File.ReadLines(path, Encoding.UTF8)) AddHit(ParseHit(line));
+            foreach (var line in File.ReadLines(path, Encoding.UTF8))
+            {
+                var hit = ParseHit(line);
+                if (hit == null) continue;
+                var key = GetHitKey(hit);
+                if (!importedRunHits.Add(key)) continue;
+                AddHit(hit);
+                AppendLineToPermanentOutput(line);
+            }
         }
 
         private static Hit ParseHit(string line)
@@ -606,7 +642,7 @@ namespace ProfanityTronStudio
         private void AddHit(Hit hit)
         {
             if (hit == null) return;
-            var key = hit.Address + ":" + hit.PrivateKey;
+            var key = GetHitKey(hit);
             if (!seenHits.Add(key)) return;
 
             var rowIndex = resultGrid.Rows.Add();
@@ -619,6 +655,22 @@ namespace ProfanityTronStudio
 
             hitCount++;
             hitCountValue.Text = hitCount.ToString();
+        }
+
+        private static string GetHitKey(Hit hit)
+        {
+            return hit.Address + ":" + hit.PrivateKey;
+        }
+
+        private void AppendLineToPermanentOutput(string line)
+        {
+            var path = GetPermanentOutputPath();
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+            File.AppendAllText(path, line + Environment.NewLine, Encoding.UTF8);
         }
 
         private void AttachProcessToKillOnCloseJob(Process process)
