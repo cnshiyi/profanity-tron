@@ -510,6 +510,26 @@ uchar base58_next_tail_index(__private uchar *tron_hash)
 	return (uchar)rem;
 }
 
+uint tronhash_mod_3364_from_ethhash(__global const uchar *ethhash, __private uint *checksumFirstWord)
+{
+	uchar hash1[32];
+	sha256_21_with_prefix_41(ethhash, hash1);
+	const uint checksum = sha256_first_word_32(hash1);
+	*checksumFirstWord = checksum;
+
+	uint rem = 65u % 3364u;
+#pragma unroll
+	for (uint i = 0; i < 20; ++i)
+	{
+		rem = ((rem << 8) + (uint)ethhash[i]) % 3364u;
+	}
+	rem = ((rem << 8) + ((checksum >> 24) & 0xffu)) % 3364u;
+	rem = ((rem << 8) + ((checksum >> 16) & 0xffu)) % 3364u;
+	rem = ((rem << 8) + ((checksum >> 8) & 0xffu)) % 3364u;
+	rem = ((rem << 8) + (checksum & 0xffu)) % 3364u;
+	return rem;
+}
+
 bool base58_tail_match_data(
 	__private const uchar *tailIndices,
 	__constant const uchar * const data1,
@@ -607,17 +627,31 @@ __kernel void profanity_score_matching(
 		uchar tailIndices[12];
 		if (suffixTailAllExact[0])
 		{
-			uchar tron_hash[25];
-			ethhash_to_tronhash(hash, tron_hash);
-
-			tailIndices[0] = base58_next_tail_index(tron_hash);
-			tailIndices[1] = base58_next_tail_index(tron_hash);
+			uint checksumFirstWord;
+			const uint mod3364 = tronhash_mod_3364_from_ethhash(hash, &checksumFirstWord);
+			tailIndices[0] = (uchar)(mod3364 % 58u);
+			tailIndices[1] = (uchar)((mod3364 / 58u) % 58u);
 
 			const uint allowIndex = (uint)tailIndices[0] * 58u + (uint)tailIndices[1];
 			if (!suffixTail2Allowed[allowIndex])
 			{
 				return;
 			}
+
+			uchar tron_hash[25];
+			tron_hash[0] = 65;
+#pragma unroll
+			for (uint i = 0; i < 20; ++i)
+			{
+				tron_hash[i + 1] = hash[i];
+			}
+			tron_hash[21] = (checksumFirstWord >> 24) & 0xffu;
+			tron_hash[22] = (checksumFirstWord >> 16) & 0xffu;
+			tron_hash[23] = (checksumFirstWord >> 8) & 0xffu;
+			tron_hash[24] = checksumFirstWord & 0xffu;
+
+			base58_next_tail_index(tron_hash);
+			base58_next_tail_index(tron_hash);
 
 			for (uint step = 2; step < suffixCount; ++step)
 			{
