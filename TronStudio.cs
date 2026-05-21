@@ -66,6 +66,7 @@ namespace ProfanityTronStudio
         private readonly Label statusValue;
         private readonly Label pidValue;
         private readonly Label hitCountValue;
+        private readonly Label brandLabel;
         private readonly SplitContainer mainSplit;
         private readonly DataGridView resultGrid;
         private readonly ContextMenuStrip resultMenu;
@@ -92,9 +93,9 @@ namespace ProfanityTronStudio
             Directory.CreateDirectory(runtimeDir);
 
             Text = UiText.T("6CE2 573A 9753 53F7 751F 6210 5DE5 5177");
-            Width = 1500;
-            Height = 860;
-            MinimumSize = new Size(1200, 720);
+            Width = 1495;
+            Height = 850;
+            MinimumSize = new Size(1280, 720);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.FromArgb(238, 238, 238);
             Font = UiFont(9f);
@@ -128,6 +129,17 @@ namespace ProfanityTronStudio
             AddLabel(topPanel, UiText.T("547D 4E2D"), 770, 106, 40);
             hitCountValue = AddValueLabel(topPanel, "0", 813, 106, 80);
             hitCountValue.ForeColor = Color.Blue;
+            brandLabel = new Label
+            {
+                Text = "@shiyi",
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                TextAlign = ContentAlignment.MiddleRight,
+                Location = new Point(1240, 30),
+                Size = new Size(190, 58),
+                Font = UiFont(18f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(45, 45, 45)
+            };
+            topPanel.Controls.Add(brandLabel);
 
             var bottomPanel = new Panel { Dock = DockStyle.Bottom, Height = 240, Padding = new Padding(8, 6, 8, 10), BackColor = Color.FromArgb(238, 238, 238) };
             Controls.Add(bottomPanel);
@@ -264,13 +276,16 @@ namespace ProfanityTronStudio
         private void AlignMainSplit()
         {
             if (!splitLayoutReady || mainSplit == null || mainSplit.IsDisposed) return;
-            mainSplit.Panel1MinSize = 320;
-            mainSplit.Panel2MinSize = 320;
+            mainSplit.Panel1MinSize = 300;
+            mainSplit.Panel2MinSize = 720;
             var availableWidth = mainSplit.ClientSize.Width - mainSplit.SplitterWidth;
             if (availableWidth <= 0) return;
-            var halfWidth = availableWidth / 2;
-            if (halfWidth < mainSplit.Panel1MinSize) return;
-            mainSplit.SplitterDistance = halfWidth;
+            var targetWidth = Math.Max(315, Math.Min(360, availableWidth / 4));
+            if (availableWidth - targetWidth < mainSplit.Panel2MinSize)
+            {
+                targetWidth = Math.Max(mainSplit.Panel1MinSize, availableWidth - mainSplit.Panel2MinSize);
+            }
+            mainSplit.SplitterDistance = targetWidth;
         }
 
         private void PostToUi(Action action)

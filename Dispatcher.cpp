@@ -322,9 +322,7 @@ void Dispatcher::run()
 
 	std::cout << std::endl;
 	std::cout << "Running..." << std::endl;
-	std::cout << "  Before using a generated address, pls always verify generated key material independently." << std::endl;
-	std::cout << "  Please make sure the program you are running is download from: https://github.com/GG4mida/profanity-tron" << std::endl;
-	std::cout << "  And always multi-sign the address to ensure account security. " << std::endl;
+	std::cout << "  @shiyi 开发构建" << std::endl;
 	std::cout << std::endl;
 
 	for (auto it = m_vDevices.begin(); it != m_vDevices.end(); ++it)
