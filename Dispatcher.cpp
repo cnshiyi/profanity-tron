@@ -8,7 +8,6 @@
 #include <iomanip>
 #include <random>
 #include <algorithm>
-#include <array>
 #include <tuple>
 #include <ctime>
 
@@ -109,6 +108,21 @@ static std::string toTron(const std::string &str)
 	return tronAddressBase58;
 }
 
+SearchRange::SearchRange()
+	: enabled(false),
+	  descending(false),
+	  start{{0, 0, 0, 0}},
+	  end{{0, 0, 0, 0}},
+	  hexFirst(0),
+	  hexLast(63),
+	  prefixHigh(0),
+	  counterStart(0),
+	  counterMask(0),
+	  counterMax(0),
+	  counterShift(0)
+{
+}
+
 unsigned int getKernelExecutionTimeMicros(cl_event &e)
 {
 	cl_ulong timeStart = 0, timeEnd = 0;
@@ -200,7 +214,8 @@ Dispatcher::Device::Device(
 	const size_t worksizeLocal,
 	const size_t size,
 	const size_t index,
-	const Mode &mode)
+	const Mode &mode,
+	const SearchRange &range)
 	: m_parent(parent),
 	  m_index(index),
 	  m_clDeviceId(clDeviceId),
@@ -258,7 +273,8 @@ Dispatcher::Dispatcher(cl_context &clContext,
 					   const size_t inverseMultiple,
 					   const cl_uchar clScoreQuit,
 					   const size_t benchmarkSeconds,
-					   const std::string &resultsPath)
+					   const std::string &resultsPath,
+					   const SearchRange &range)
 	: m_clContext(clContext),
 	  m_clProgram(clProgram),
 	  m_mode(mode),
@@ -269,6 +285,7 @@ Dispatcher::Dispatcher(cl_context &clContext,
 	  m_clScoreQuit(clScoreQuit),
 	  m_benchmarkSeconds(benchmarkSeconds),
 	  m_resultsPath(resultsPath),
+	  m_range(range),
 	  m_resultsValidated(0),
 	  m_resultsSaved(0),
 	  m_resultThreadStop(false),
@@ -300,8 +317,18 @@ void Dispatcher::addDevice(
 	const size_t worksizeLocal,
 	const size_t index)
 {
-	Device *pDevice = new Device(*this, m_clContext, m_clProgram, clDeviceId, worksizeLocal, m_size, index, m_mode);
+	Device *pDevice = new Device(*this, m_clContext, m_clProgram, clDeviceId, worksizeLocal, m_size, index, m_mode, m_range);
+	if (m_range.enabled)
+	{
+		prepareRangeDevice(*pDevice);
+	}
 	m_vDevices.push_back(pDevice);
+}
+
+void Dispatcher::prepareRangeDevice(Device &d)
+{
+	d.m_clSeed = m_range.start;
+	d.m_clSeed.s[3] = m_range.prefixHigh | (m_range.counterStart << m_range.counterShift);
 }
 
 void Dispatcher::run()
@@ -396,20 +423,24 @@ void Dispatcher::initBegin(Device &d)
 	d.m_memData2.write(true);
 
 	// Kernel arguments - profanity_begin
-	d.m_memPrecomp.setKernelArg(d.m_kernelInit, 0);
-	d.m_memPointsDeltaX.setKernelArg(d.m_kernelInit, 1);
-	d.m_memPrevLambda.setKernelArg(d.m_kernelInit, 2);
-	d.m_memResult.setKernelArg(d.m_kernelInit, 3);
-	CLMemory<cl_ulong4>::setKernelArg(d.m_kernelInit, 4, d.m_clSeed);
+	cl_kernel &kernelInit = d.m_kernelInit;
+	d.m_memPrecomp.setKernelArg(kernelInit, 0);
+	d.m_memPointsDeltaX.setKernelArg(kernelInit, 1);
+	d.m_memPrevLambda.setKernelArg(kernelInit, 2);
+	d.m_memResult.setKernelArg(kernelInit, 3);
+	CLMemory<cl_ulong4>::setKernelArg(kernelInit, 4, d.m_clSeed);
+	CLMemory<cl_uchar>::setKernelArg(kernelInit, 5, m_range.enabled && m_range.descending ? 1 : 0);
 
 	// Kernel arguments - profanity_inverse
-	d.m_memPointsDeltaX.setKernelArg(d.m_kernelInverse, 0);
-	d.m_memInversedNegativeDoubleGy.setKernelArg(d.m_kernelInverse, 1);
+	cl_kernel &kernelInverse = d.m_kernelInverse;
+	d.m_memPointsDeltaX.setKernelArg(kernelInverse, 0);
+	d.m_memInversedNegativeDoubleGy.setKernelArg(kernelInverse, 1);
 
 	// Kernel arguments - profanity_iterate
-	d.m_memPointsDeltaX.setKernelArg(d.m_kernelIterate, 0);
-	d.m_memInversedNegativeDoubleGy.setKernelArg(d.m_kernelIterate, 1);
-	d.m_memPrevLambda.setKernelArg(d.m_kernelIterate, 2);
+	cl_kernel &kernelIterate = d.m_kernelIterate;
+	d.m_memPointsDeltaX.setKernelArg(kernelIterate, 0);
+	d.m_memInversedNegativeDoubleGy.setKernelArg(kernelIterate, 1);
+	d.m_memPrevLambda.setKernelArg(kernelIterate, 2);
 
 	// Kernel arguments - profanity_score_*
 	d.m_memInversedNegativeDoubleGy.setKernelArg(d.m_kernelScore, 0);
@@ -424,6 +455,8 @@ void Dispatcher::initBegin(Device &d)
 		? base58IndexOf(m_mode.data2[19])
 		: 0xff;
 	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 8, suffixMatchIndex);
+	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 9, m_range.enabled ? 1 : 0);
+	CLMemory<cl_ulong>::setKernelArg(d.m_kernelScore, 10, m_range.counterMax == 0 ? 0 : (m_range.counterMax - 1));
 	
 	// Seed device
 	initContinue(d);
@@ -540,22 +573,35 @@ static void printResult(
 	result r,
 	cl_uchar score,
 	const std::chrono::time_point<std::chrono::steady_clock> &timeStart,
-	const Mode & mode)
+	const Mode & mode,
+	const SearchRange & range)
 {
 	// Time delta
 	const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - timeStart).count();
 
 	// Format private key
-	cl_ulong carry = 0;
-	cl_ulong4 seedRes;
-
-	seedRes.s[0] = seed.s[0] + round;
-	carry = seedRes.s[0] < round;
-	seedRes.s[1] = seed.s[1] + carry;
-	carry = !seedRes.s[1];
-	seedRes.s[2] = seed.s[2] + carry;
-	carry = !seedRes.s[2];
-	seedRes.s[3] = seed.s[3] + carry + r.foundId;
+	cl_ulong4 seedRes = seed;
+	if (range.enabled)
+	{
+		seedRes.s[0] = seed.s[0] + round;
+		cl_ulong carry = seedRes.s[0] < round;
+		seedRes.s[1] = seed.s[1] + carry;
+		carry = !seedRes.s[1];
+		seedRes.s[2] = seed.s[2] + carry;
+		carry = !seedRes.s[2];
+		seedRes.s[3] = range.descending ? seed.s[3] + carry - r.foundId : seed.s[3] + carry + r.foundId;
+	}
+	else
+	{
+		cl_ulong carry = 0;
+		seedRes.s[0] = seed.s[0] + round;
+		carry = seedRes.s[0] < round;
+		seedRes.s[1] = seed.s[1] + carry;
+		carry = !seedRes.s[1];
+		seedRes.s[2] = seed.s[2] + carry;
+		carry = !seedRes.s[2];
+		seedRes.s[3] = seed.s[3] + carry + r.foundId;
+	}
 
 	std::ostringstream ss;
 	ss << std::hex << std::setfill('0');
@@ -634,6 +680,14 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 					m_quit = true;
 				}
 			}
+			if (!m_quit && m_range.enabled)
+			{
+				const cl_ulong span = d.m_round + m_size;
+				if (span >= m_range.counterMax)
+				{
+					m_quit = true;
+				}
+			}
 
 			if (m_quit)
 			{
@@ -660,6 +714,32 @@ void Dispatcher::enqueueResult(Device &d, const result &r, cl_uchar score)
 		m_resultQueue.emplace_back(d.m_clSeed, d.m_round, r, score);
 	}
 	m_resultQueueCv.notify_one();
+}
+
+cl_ulong4 Dispatcher::candidatePrivate(const cl_ulong4 &seed, cl_ulong round, cl_uint foundId) const
+{
+	cl_ulong4 seedRes = seed;
+	if (m_range.enabled)
+	{
+		seedRes.s[0] = seed.s[0] + round;
+		cl_ulong carry = seedRes.s[0] < round;
+		seedRes.s[1] = seed.s[1] + carry;
+		carry = !seedRes.s[1];
+		seedRes.s[2] = seed.s[2] + carry;
+		carry = !seedRes.s[2];
+		seedRes.s[3] = m_range.descending ? seed.s[3] + carry - foundId : seed.s[3] + carry + foundId;
+		return seedRes;
+	}
+
+	cl_ulong carry = 0;
+	seedRes.s[0] = seed.s[0] + round;
+	carry = seedRes.s[0] < round;
+	seedRes.s[1] = seed.s[1] + carry;
+	carry = !seedRes.s[1];
+	seedRes.s[2] = seed.s[2] + carry;
+	carry = !seedRes.s[2];
+	seedRes.s[3] = seed.s[3] + carry + foundId;
+	return seedRes;
 }
 
 bool Dispatcher::validateResult(const result &r) const
@@ -750,7 +830,7 @@ void Dispatcher::processResultQueue()
 				std::lock_guard<std::mutex> lock(m_mutex);
 				++m_resultsValidated;
 			}
-			printResult(seed, round, r, score, timeStart, m_mode);
+			printResult(seed, round, r, score, timeStart, m_mode, m_range);
 			appendResultToFile(seed, round, r, score);
 		}
 	}
@@ -763,15 +843,7 @@ void Dispatcher::appendResultToFile(const cl_ulong4 &seed, cl_ulong round, const
 		return;
 	}
 
-	cl_ulong carry = 0;
-	cl_ulong4 seedRes;
-	seedRes.s[0] = seed.s[0] + round;
-	carry = seedRes.s[0] < round;
-	seedRes.s[1] = seed.s[1] + carry;
-	carry = !seedRes.s[1];
-	seedRes.s[2] = seed.s[2] + carry;
-	carry = !seedRes.s[2];
-	seedRes.s[3] = seed.s[3] + carry + r.foundId;
+	const cl_ulong4 seedRes = candidatePrivate(seed, round, r.foundId);
 
 	std::ostringstream privateKey;
 	privateKey << std::hex << std::setfill('0');

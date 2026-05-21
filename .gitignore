@@ -6,6 +6,7 @@
 *.lib
 *.so
 .DS_Store
+.idea/
 *.x64
 *_stdout.txt
 *_stderr.txt

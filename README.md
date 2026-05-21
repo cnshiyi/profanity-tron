@@ -68,6 +68,12 @@ Usage: ./profanity [OPTIONS]
     --prefix-count      最少前缀匹配位数，默认 0
     --suffix-count      最少后缀匹配位数，默认 6
     --quit-count        当满足条件时退出，默认 0
+    --output            将验证通过的命中结果追加写入文件
+
+  私钥范围控制:
+    --range-start       起始私钥，64 位十六进制；留空则使用安全随机模式
+    --range-end         结束私钥，64 位十六进制；必须和 --range-start 同时填写
+    --range-direction   搜索方向，up 或 down；留空默认为 up
 
   设备控制:
     --skip              按索引跳过 GPU
@@ -82,7 +88,16 @@ Usage: ./profanity [OPTIONS]
 ./profanity --matching profanity.txt --suffix-count 6
 ./profanity --matching profanity.txt --prefix-count 2 --suffix-count 6 --quit-count 1
 ./profanity --matching TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D --prefix-count 2 --suffix-count 4 --quit-count 1
+./profanity --matching TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D --prefix-count 0 --suffix-count 1 --quit-count 3 --range-start 58958afa84300000e8ce89f9a5b808e8ee611ad00deaf3745a5305e0a3e1d688 --range-end 58958afa844fffffe8ce89f9a5b808e8ee611ad00deaf3745a5305e0a3e1d688 --range-direction up --output hits.txt
 ```
+
+## 私钥范围控制
+
+`--range-start`、`--range-end`、`--range-direction` 可以全部留空；留空时仍然使用系统安全随机种子。
+
+填写范围参数时，程序会按指定方向控制私钥前 64 位中的连续变化窗口。当前版本要求变化窗口结束在第 16 个 hex 位，适合控制类似 `58958afa84300000...` 到 `58958afa844fffff...` 这种形态。
+
+生成结果仍会做 TRON 地址格式和匹配条件校验；使用前仍建议独立校验 `private` 是否能推导出对应 `address`。
 
 ## 匹配输入
 

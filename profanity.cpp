@@ -9,6 +9,8 @@
 #include <map>
 #include <set>
 #include <iomanip>
+#include <cctype>
+#include <limits>
 
 #if defined(__APPLE__) || defined(__MACOSX)
 #include <OpenCL/cl.h>
@@ -277,6 +279,255 @@ bool hasCliSwitch(int argc, char **argv, const std::initializer_list<const char 
 	return false;
 }
 
+static bool isBlank(const std::string &value)
+{
+	return value.find_first_not_of(" \t\r\n") == std::string::npos;
+}
+
+static std::string normalizePrivateKeyHex(const std::string &input, const char *name)
+{
+	std::string text;
+	for (const unsigned char c : input)
+	{
+		if (!std::isspace(c))
+		{
+			text.push_back(static_cast<char>(c));
+		}
+	}
+
+	if (text.size() >= 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X'))
+	{
+		text.erase(0, 2);
+	}
+
+	if (text.empty())
+	{
+		return text;
+	}
+
+	if (text.size() > 64)
+	{
+		throw std::runtime_error(std::string(name) + " must be at most 64 hex chars");
+	}
+
+	for (const unsigned char c : text)
+	{
+		if (!std::isxdigit(c))
+		{
+			throw std::runtime_error(std::string(name) + " must be hex");
+		}
+	}
+
+	return std::string(64 - text.size(), '0') + text;
+}
+
+static cl_ulong parseHex64(const std::string &hex, size_t offset)
+{
+	cl_ulong value = 0;
+	for (size_t i = 0; i < 16; ++i)
+	{
+		const char c = hex[offset + i];
+		unsigned int n = 0;
+		if (c >= '0' && c <= '9')
+		{
+			n = c - '0';
+		}
+		else if (c >= 'a' && c <= 'f')
+		{
+			n = 10 + c - 'a';
+		}
+		else
+		{
+			n = 10 + c - 'A';
+		}
+		value = (value << 4) | n;
+	}
+	return value;
+}
+
+static cl_ulong4 hexToClUlong4(const std::string &hex)
+{
+	cl_ulong4 value;
+	value.s[3] = parseHex64(hex, 0);
+	value.s[2] = parseHex64(hex, 16);
+	value.s[1] = parseHex64(hex, 32);
+	value.s[0] = parseHex64(hex, 48);
+	return value;
+}
+
+static std::string clUlong4ToHex(const cl_ulong4 &value)
+{
+	std::ostringstream ss;
+	ss << std::hex << std::setfill('0')
+	   << std::setw(16) << value.s[3]
+	   << std::setw(16) << value.s[2]
+	   << std::setw(16) << value.s[1]
+	   << std::setw(16) << value.s[0];
+	return ss.str();
+}
+
+static cl_ulong makeNibbleMask(unsigned int nibbles)
+{
+	if (nibbles == 0)
+	{
+		return 0;
+	}
+	if (nibbles >= 16)
+	{
+		return (std::numeric_limits<cl_ulong>::max)();
+	}
+	return (1ull << (nibbles * 4)) - 1ull;
+}
+
+static int compareHexStrings(const std::string &a, const std::string &b)
+{
+	for (size_t i = 0; i < a.size() && i < b.size(); ++i)
+	{
+		const char ca = static_cast<char>(std::tolower(static_cast<unsigned char>(a[i])));
+		const char cb = static_cast<char>(std::tolower(static_cast<unsigned char>(b[i])));
+		if (ca < cb)
+		{
+			return -1;
+		}
+		if (ca > cb)
+		{
+			return 1;
+		}
+	}
+	if (a.size() < b.size())
+	{
+		return -1;
+	}
+	if (a.size() > b.size())
+	{
+		return 1;
+	}
+	return 0;
+}
+
+static SearchRange buildSearchRange(
+	const std::string &rangeStartInput,
+	const std::string &rangeEndInput,
+	const std::string &rangeDirectionInput)
+{
+	SearchRange range;
+	const bool hasStart = !isBlank(rangeStartInput);
+	const bool hasEnd = !isBlank(rangeEndInput);
+	const bool hasDirection = !isBlank(rangeDirectionInput);
+	if (!hasStart && !hasEnd && !hasDirection)
+	{
+		return range;
+	}
+
+	if (!hasStart || !hasEnd)
+	{
+		throw std::runtime_error("--range-start and --range-end must be both set, or both empty");
+	}
+
+	std::string direction = rangeDirectionInput;
+	std::transform(direction.begin(), direction.end(), direction.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+	if (direction.empty())
+	{
+		direction = "up";
+	}
+	if (direction != "up" && direction != "down")
+	{
+		throw std::runtime_error("--range-direction must be up or down");
+	}
+	const bool descending = direction == "down";
+
+	const std::string startHex = normalizePrivateKeyHex(rangeStartInput, "--range-start");
+	const std::string endHex = normalizePrivateKeyHex(rangeEndInput, "--range-end");
+	if (startHex.empty() || endHex.empty())
+	{
+		throw std::runtime_error("--range-start and --range-end cannot be blank when range mode is enabled");
+	}
+
+	size_t firstDiff = 64;
+	size_t lastDiff = 0;
+	for (size_t i = 0; i < 64; ++i)
+	{
+		if (std::tolower(static_cast<unsigned char>(startHex[i])) != std::tolower(static_cast<unsigned char>(endHex[i])))
+		{
+			firstDiff = (std::min)(firstDiff, i);
+			lastDiff = i;
+		}
+	}
+
+	const int order = compareHexStrings(startHex, endHex);
+	if (!descending && order > 0)
+	{
+		throw std::runtime_error("up range requires start <= end");
+	}
+	if (descending && order < 0)
+	{
+		throw std::runtime_error("down range requires start >= end");
+	}
+
+	if (firstDiff == 64)
+	{
+		throw std::runtime_error("range start and end are identical");
+	}
+
+	if (lastDiff > 15)
+	{
+		throw std::runtime_error("current range mode supports changing only the first 16 hex chars of the private key");
+	}
+
+	const unsigned int variableNibbles = static_cast<unsigned int>(lastDiff - firstDiff + 1);
+	if (variableNibbles > 16)
+	{
+		throw std::runtime_error("range window cannot be wider than 16 hex chars");
+	}
+	if (lastDiff != 15)
+	{
+		throw std::runtime_error("current range mode requires the variable window to end at hex position 16");
+	}
+	const unsigned int lowFixedNibblesInHighWord = 15u - static_cast<unsigned int>(lastDiff);
+	if (lowFixedNibblesInHighWord > 31)
+	{
+		throw std::runtime_error("range window is too low for foundId-based control");
+	}
+
+	for (size_t i = 0; i < 64; ++i)
+	{
+		if (i < firstDiff || i > lastDiff)
+		{
+			if (std::tolower(static_cast<unsigned char>(startHex[i])) != std::tolower(static_cast<unsigned char>(endHex[i])))
+			{
+				throw std::runtime_error("range start/end must differ only inside one continuous hex window");
+			}
+		}
+	}
+
+	range.enabled = true;
+	range.descending = descending;
+	range.hexFirst = static_cast<unsigned int>(firstDiff);
+	range.hexLast = static_cast<unsigned int>(lastDiff);
+	range.start = hexToClUlong4(startHex);
+	range.end = hexToClUlong4(endHex);
+
+	const cl_ulong variableMask = makeNibbleMask(variableNibbles) << (lowFixedNibblesInHighWord * 4);
+	const cl_ulong counterLow = (range.start.s[3] & variableMask) >> (lowFixedNibblesInHighWord * 4);
+	const cl_ulong counterEnd = (range.end.s[3] & variableMask) >> (lowFixedNibblesInHighWord * 4);
+	range.counterMask = makeNibbleMask(variableNibbles);
+	range.counterMax = range.descending ? (counterLow - counterEnd) : (counterEnd - counterLow);
+	++range.counterMax;
+	range.prefixHigh = range.start.s[3] & ~variableMask;
+	range.counterStart = counterLow;
+	range.counterShift = lowFixedNibblesInHighWord * 4;
+
+	std::cout << "Range:" << std::endl;
+	std::cout << "  start = " << clUlong4ToHex(range.start) << std::endl;
+	std::cout << "  end = " << clUlong4ToHex(range.end) << std::endl;
+	std::cout << "  direction = " << (range.descending ? "down" : "up") << std::endl;
+	std::cout << "  variable hex = " << (range.hexFirst + 1) << "-" << (range.hexLast + 1) << std::endl;
+	std::cout << "  max steps = " << range.counterMax << std::endl;
+	std::cout << "  note = range mode constrains the first 64-bit private-key lane" << std::endl;
+
+	return range;
+}
+
 size_t clampWorkgroupCandidate(size_t candidate, size_t maxWorkGroupSize)
 {
 	if (candidate == 0 || maxWorkGroupSize == 0)
@@ -386,6 +637,9 @@ int main(int argc, char **argv)
 
 		std::string matchingInput;
 		std::string resultsPath;
+		std::string rangeStartInput;
+		std::string rangeEndInput;
+		std::string rangeDirectionInput;
 		std::vector<size_t> vDeviceSkipIndex;
 		size_t worksizeLocal = 64;
 		size_t worksizeMax = 0;
@@ -403,6 +657,9 @@ int main(int argc, char **argv)
 		argp.addSwitch('h', "help", bHelp);
 		argp.addSwitch('m', "matching", matchingInput);
 		argp.addSwitch('o', "output", resultsPath);
+		argp.addSwitch('x', "range-start", rangeStartInput);
+		argp.addSwitch('y', "range-end", rangeEndInput);
+		argp.addSwitch('z', "range-direction", rangeDirectionInput);
 		argp.addSwitch('w', "work", worksizeLocal);
 		argp.addSwitch('W', "work-max", worksizeMax);
 		argp.addSwitch('i', "inverse-size", inverseSize);
@@ -432,20 +689,12 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		if (prefixCount < 0)
-		{
-			prefixCount = 0;
-		}
+		SearchRange searchRange = buildSearchRange(rangeStartInput, rangeEndInput, rangeDirectionInput);
 
 		if (prefixCount > 10)
 		{
 			std::cout << "error: the number of prefix matches cannot be greater than 10 :<" << std::endl;
 			return 1;
-		}
-
-		if (suffixCount < 0)
-		{
-			suffixCount = 6;
 		}
 
 		if (suffixCount > 12)
@@ -561,7 +810,7 @@ int main(int argc, char **argv)
 
 		std::cout << std::endl;
 
-		Dispatcher d(clContext, clProgram, mode, worksizeMax == 0 ? inverseSize * inverseMultiple : worksizeMax, inverseSize, inverseMultiple, quitCount, benchmarkSeconds, resultsPath);
+		Dispatcher d(clContext, clProgram, mode, worksizeMax == 0 ? inverseSize * inverseMultiple : worksizeMax, inverseSize, inverseMultiple, quitCount, benchmarkSeconds, resultsPath, searchRange);
 
 		for (auto &i : vDevices)
 		{
