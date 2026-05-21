@@ -652,7 +652,18 @@ __kernel void profanity_score_matching(
 
 			for (uint step = 2; step < suffixCount; ++step)
 			{
-				tailIndices[step] = base58_next_tail_index(tron_hash);
+				const uchar tailIndex = base58_next_tail_index(tron_hash);
+				if (suffixTailAllExact[1] && tailIndex != suffixTailAllExact[2 + step])
+				{
+					return;
+				}
+				tailIndices[step] = tailIndex;
+			}
+
+			if (suffixTailAllExact[1])
+			{
+				profanity_result_update(id, hash, pResult, scoreMax);
+				return;
 			}
 
 			for (uint j = 0; j < matchingCount; ++j)

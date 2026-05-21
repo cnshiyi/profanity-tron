@@ -236,7 +236,7 @@ Dispatcher::Device::Device(
 	  m_memSuffix1Allowed(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, 58),
 	  m_memSuffixTailExact(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, mode.matchingCount),
 	  m_memSuffixTailIndex(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, 12 * mode.matchingCount),
-	  m_memSuffixTailAllExact(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, 1),
+	  m_memSuffixTailAllExact(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, 14),
 	  m_memSuffixTail2Allowed(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, 58 * 58),
 	  m_clSeed(createSeed()),
 	  m_round(0),
@@ -433,7 +433,10 @@ void Dispatcher::initBegin(Device &d)
 			d.m_memSuffixTailIndex[j * 12 + step] = 0xff;
 		}
 	}
-	d.m_memSuffixTailAllExact[0] = 0;
+	for (size_t i = 0; i < 14; ++i)
+	{
+		d.m_memSuffixTailAllExact[i] = 0;
+	}
 	for (size_t i = 0; i < 58 * 58; ++i)
 	{
 		d.m_memSuffixTail2Allowed[i] = 0;
@@ -501,7 +504,29 @@ void Dispatcher::initBegin(Device &d)
 				}
 			}
 		}
+		bool commonTailAfterSuffix2 = allExactSuffix && m_mode.suffixCount > 2;
+		if (commonTailAfterSuffix2)
+		{
+			for (size_t step = 2; step < m_mode.suffixCount; ++step)
+			{
+				const cl_uchar expected = d.m_memSuffixTailIndex[step];
+				for (size_t j = 1; j < m_mode.matchingCount; ++j)
+				{
+					if (d.m_memSuffixTailIndex[j * 12 + step] != expected)
+					{
+						commonTailAfterSuffix2 = false;
+						break;
+					}
+				}
+				if (!commonTailAfterSuffix2)
+				{
+					break;
+				}
+				d.m_memSuffixTailAllExact[2 + step] = expected;
+			}
+		}
 		d.m_memSuffixTailAllExact[0] = allExactSuffix ? 1 : 0;
+		d.m_memSuffixTailAllExact[1] = commonTailAfterSuffix2 ? 1 : 0;
 	}
 
 	// Write precompute table and mode data
