@@ -691,7 +691,7 @@ __kernel void profanity_score_matching(
 		return;
 	}
 
-	if (matchingCount == 1 && prefixCount == 0 && suffixCount >= 3 && suffixCount <= 12)
+	if (matchingCount == 1 && prefixCount <= 1 && suffixCount >= 3 && suffixCount <= 12)
 	{
 		bool matched = false;
 		switch (suffixCount)
