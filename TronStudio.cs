@@ -237,7 +237,16 @@ namespace ProfanityTronStudio
                     return text;
                 }
             }
-            return "TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D";
+            return string.Join(Environment.NewLine, new[]
+            {
+                "TTTTTTTTTTTTTTTTTTTTAAAAAAAAAAHASH",
+                "TTTTTTTTTTTTTTTTTTTTBBBBBBBBBBHASH",
+                "TTTTTTTTTTTTTTTTTTTTCCCCCCCCCCHASH",
+                "TTTTTTTTTTTTTTTTTTTTDDDDDDDDDDHASH",
+                "TTTTTTTTTTTTTTTTTTTTEEEEEEEEEEHASH",
+                "TTTTTTTTTTTTTTTTTTTTFFFFFFFFFFHASH",
+                "TTTTTTTTTTTTTTTTTTTTGGGGGGGGGGHASH"
+            });
         }
 
         private void SaveTargets()
