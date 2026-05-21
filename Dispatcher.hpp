@@ -58,11 +58,15 @@ class Dispatcher {
 			static cl_kernel createKernel(cl_program & clProgram, const std::string s);
 			static cl_ulong4 createSeed();
 
-			Device(Dispatcher & parent, cl_context & clContext, cl_program & clProgram, cl_device_id clDeviceId, const size_t worksizeLocal, const size_t size, const size_t index, const Mode & mode, const SearchRange & range);
+			Device(Dispatcher & parent, cl_context & clContext, cl_program & clProgram, cl_device_id clDeviceId, const size_t worksizeLocal, const size_t size, const size_t worksizeMax, const size_t inverseSize, const size_t index, const std::string & label, const Mode & mode, const SearchRange & range);
 			~Device();
 
 			Dispatcher & m_parent;
 			const size_t m_index;
+			const std::string m_label;
+			const size_t m_size;
+			const size_t m_worksizeMax;
+			const size_t m_inverseSize;
 
 			cl_device_id m_clDeviceId;
 			size_t m_worksizeLocal;
@@ -105,7 +109,7 @@ class Dispatcher {
 		Dispatcher(cl_context & clContext, cl_program & clProgram, const Mode mode, const size_t worksizeMax, const size_t inverseSize, const size_t inverseMultiple, const cl_uchar clScoreQuit = 0, const size_t benchmarkSeconds = 0, const std::string & resultsPath = std::string(), const SearchRange & range = SearchRange());
 		~Dispatcher();
 
-		void addDevice(cl_device_id clDeviceId, const size_t worksizeLocal, const size_t index);
+		void addDevice(cl_device_id clDeviceId, const size_t worksizeLocal, const size_t index, const std::string & label = std::string(), const size_t deviceInverseMultiple = 0);
 		void run();
 
 	private:
@@ -114,7 +118,7 @@ class Dispatcher {
 		void initContinue(Device & d);
 
 		void dispatch(Device & d);
-		void enqueueKernel(cl_command_queue & clQueue, cl_kernel & clKernel, size_t worksizeGlobal, const size_t worksizeLocal, cl_event * pEvent);
+		void enqueueKernel(cl_command_queue & clQueue, cl_kernel & clKernel, size_t worksizeGlobal, const size_t worksizeMax, const size_t worksizeLocal, cl_event * pEvent);
 		void enqueueKernelDevice(Device & d, cl_kernel & clKernel, size_t worksizeGlobal, cl_event * pEvent);
 
 		void handleResult(Device & d);

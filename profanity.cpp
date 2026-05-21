@@ -50,16 +50,49 @@ std::vector<cl_device_id> getAllDevices(cl_device_type deviceType = CL_DEVICE_TY
 
 	for (auto it = platformIds.cbegin(); it != platformIds.cend(); ++it)
 	{
-		cl_uint countDevice;
-		clGetDeviceIDs(*it, deviceType, 0, NULL, &countDevice);
+		cl_uint countDevice = 0;
+		const cl_int countResult = clGetDeviceIDs(*it, deviceType, 0, NULL, &countDevice);
+		if (countResult != CL_SUCCESS || countDevice == 0)
+		{
+			continue;
+		}
 
 		std::vector<cl_device_id> deviceIds(countDevice);
-		clGetDeviceIDs(*it, deviceType, countDevice, deviceIds.data(), &countDevice);
+		const cl_int listResult = clGetDeviceIDs(*it, deviceType, countDevice, deviceIds.data(), &countDevice);
+		if (listResult != CL_SUCCESS)
+		{
+			continue;
+		}
 
 		std::copy(deviceIds.begin(), deviceIds.end(), std::back_inserter(vDevices));
 	}
 
 	return vDevices;
+}
+
+std::vector<cl_device_id> getCpuDevicesForPlatform(cl_platform_id platformId)
+{
+	cl_uint countDevice = 0;
+	const cl_int countResult = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_CPU, 0, NULL, &countDevice);
+	if (countResult != CL_SUCCESS || countDevice == 0)
+	{
+		return {};
+	}
+
+	std::vector<cl_device_id> deviceIds(countDevice);
+	const cl_int listResult = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_CPU, countDevice, deviceIds.data(), &countDevice);
+	if (listResult != CL_SUCCESS)
+	{
+		return {};
+	}
+	return deviceIds;
+}
+
+cl_platform_id getDevicePlatform(cl_device_id deviceId)
+{
+	cl_platform_id platformId = NULL;
+	clGetDeviceInfo(deviceId, CL_DEVICE_PLATFORM, sizeof(platformId), &platformId, NULL);
+	return platformId;
 }
 
 template <typename T, typename U, typename V, typename W>
@@ -649,7 +682,9 @@ int main(int argc, char **argv)
 		size_t suffixCount = 6;
 		size_t quitCount = 0;
 		size_t benchmarkSeconds = 0;
+		size_t cpuAssistInverseMultiple = 128;
 		bool noCache = false;
+		bool cpuAssist = false;
 		const bool userSetWorksizeLocal = hasCliSwitch(argc, argv, {"-w", "--work"});
 		const bool userSetWorksizeMax = hasCliSwitch(argc, argv, {"-W", "--work-max"});
 		const bool userSetInverseMultiple = hasCliSwitch(argc, argv, {"-I", "--inverse-multiple"});
@@ -669,6 +704,8 @@ int main(int argc, char **argv)
 		argp.addSwitch('q', "quit-count", quitCount);
 		argp.addSwitch('t', "benchmark-seconds", benchmarkSeconds);
 		argp.addSwitch('n', "no-cache", noCache);
+		argp.addSwitch('c', "cpu-assist", cpuAssist);
+		argp.addSwitch('C', "cpu-assist-inverse-multiple", cpuAssistInverseMultiple);
 		argp.addMultiSwitch('s', "skip", vDeviceSkipIndex);
 
 		if (!argp.parse())
@@ -716,7 +753,10 @@ int main(int argc, char **argv)
 
 		std::vector<cl_device_id> vFoundDevices = getAllDevices();
 		std::vector<cl_device_id> vDevices;
+		std::vector<cl_device_id> vCpuAssistDevices;
 		std::map<cl_device_id, size_t> mDeviceIndex;
+		std::map<cl_device_id, std::string> mDeviceLabel;
+		std::map<cl_device_id, size_t> mDeviceInverseMultiple;
 
 		cl_int errorCode;
 
@@ -741,6 +781,7 @@ int main(int argc, char **argv)
 			std::cout << "  GPU-" << i << ": " << strName << ", " << globalMemSize << " bytes available, " << computeUnits << " compute units" << std::endl;
 			vDevices.push_back(vFoundDevices[i]);
 			mDeviceIndex[vFoundDevices[i]] = i;
+			mDeviceLabel[vFoundDevices[i]] = "GPU" + toString(i);
 		}
 
 		if (vDevices.empty())
@@ -748,7 +789,41 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		autoTuneForDevices(vDevices, userSetWorksizeLocal, userSetInverseMultiple, worksizeLocal, inverseMultiple);
+		const std::vector<cl_device_id> vGpuDevices = vDevices;
+
+		if (cpuAssist)
+		{
+			std::set<cl_platform_id> gpuPlatforms;
+			for (const auto &gpuDevice : vDevices)
+			{
+				gpuPlatforms.insert(getDevicePlatform(gpuDevice));
+			}
+
+			size_t cpuIndex = 0;
+			for (const auto &platformId : gpuPlatforms)
+			{
+				const auto cpuDevices = getCpuDevicesForPlatform(platformId);
+				for (const auto &cpuDevice : cpuDevices)
+				{
+					const auto strName = clGetWrapperString(clGetDeviceInfo, cpuDevice, CL_DEVICE_NAME);
+					const auto computeUnits = clGetWrapper<cl_uint>(clGetDeviceInfo, cpuDevice, CL_DEVICE_MAX_COMPUTE_UNITS);
+					const auto globalMemSize = clGetWrapper<cl_ulong>(clGetDeviceInfo, cpuDevice, CL_DEVICE_GLOBAL_MEM_SIZE);
+					std::cout << "  CPU-" << cpuIndex << ": " << strName << ", " << globalMemSize << " bytes available, " << computeUnits << " compute units (assist)" << std::endl;
+					vDevices.push_back(cpuDevice);
+					vCpuAssistDevices.push_back(cpuDevice);
+					mDeviceIndex[cpuDevice] = cpuIndex;
+					mDeviceLabel[cpuDevice] = "CPU" + toString(cpuIndex);
+					mDeviceInverseMultiple[cpuDevice] = cpuAssistInverseMultiple;
+					++cpuIndex;
+				}
+			}
+			if (vCpuAssistDevices.empty())
+			{
+				std::cout << "  CPU assist requested, but no OpenCL CPU device was found on the selected GPU platform" << std::endl;
+			}
+		}
+
+		autoTuneForDevices(vGpuDevices, userSetWorksizeLocal, userSetInverseMultiple, worksizeLocal, inverseMultiple);
 
 		if (!userSetWorksizeLocal || !userSetInverseMultiple || !userSetWorksizeMax)
 		{
@@ -757,6 +832,10 @@ int main(int argc, char **argv)
 			std::cout << "  work = " << worksizeLocal << std::endl;
 			std::cout << "  inverse-multiple = " << inverseMultiple << std::endl;
 			std::cout << "  work-max = " << (worksizeMax == 0 ? inverseSize * inverseMultiple : worksizeMax) << std::endl;
+			if (cpuAssist && !vCpuAssistDevices.empty())
+			{
+				std::cout << "  cpu-assist-inverse-multiple = " << cpuAssistInverseMultiple << std::endl;
+			}
 		}
 
 		std::cout << std::endl;
@@ -814,7 +893,9 @@ int main(int argc, char **argv)
 
 		for (auto &i : vDevices)
 		{
-			d.addDevice(i, worksizeLocal, mDeviceIndex[i]);
+			const auto cpuAssistIt = mDeviceInverseMultiple.find(i);
+			const bool isCpuAssistDevice = cpuAssistIt != mDeviceInverseMultiple.end();
+			d.addDevice(i, isCpuAssistDevice ? 0 : worksizeLocal, mDeviceIndex[i], mDeviceLabel[i], isCpuAssistDevice ? cpuAssistIt->second : 0);
 		}
 
 		d.run();

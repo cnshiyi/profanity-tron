@@ -29,6 +29,9 @@ Usage: ./profanity [OPTIONS]
 
   设备控制:
     --skip                 按索引跳过指定 GPU 设备
+    --cpu-assist           Optional: add low-rate OpenCL CPU assist generation when available; default off
+    --cpu-assist-inverse-multiple
+                           CPU assist batch size, default 128; lower means lighter CPU participation
     --no-cache             禁用 OpenCL 程序二进制缓存
 
 示例:

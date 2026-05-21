@@ -213,11 +213,18 @@ Dispatcher::Device::Device(
 	cl_device_id clDeviceId,
 	const size_t worksizeLocal,
 	const size_t size,
+	const size_t worksizeMax,
+	const size_t inverseSize,
 	const size_t index,
+	const std::string &label,
 	const Mode &mode,
 	const SearchRange &range)
 	: m_parent(parent),
 	  m_index(index),
+	  m_label(label.empty() ? ("GPU" + toString(index)) : label),
+	  m_size(size),
+	  m_worksizeMax(worksizeMax),
+	  m_inverseSize(inverseSize),
 	  m_clDeviceId(clDeviceId),
 	  m_worksizeLocal(worksizeLocal),
 	  m_clScoreMax(0),
@@ -320,9 +327,13 @@ Dispatcher::~Dispatcher()
 void Dispatcher::addDevice(
 	cl_device_id clDeviceId,
 	const size_t worksizeLocal,
-	const size_t index)
+	const size_t index,
+	const std::string &label,
+	const size_t deviceInverseMultiple)
 {
-	Device *pDevice = new Device(*this, m_clContext, m_clProgram, clDeviceId, worksizeLocal, m_size, index, m_mode, m_range);
+	const size_t deviceSize = m_inverseSize * (deviceInverseMultiple == 0 ? (m_size / m_inverseSize) : deviceInverseMultiple);
+	const size_t deviceWorksizeMax = deviceInverseMultiple == 0 ? m_worksizeMax : deviceSize;
+	Device *pDevice = new Device(*this, m_clContext, m_clProgram, clDeviceId, worksizeLocal, deviceSize, deviceWorksizeMax, m_inverseSize, index, label, m_mode, m_range);
 	if (m_range.enabled)
 	{
 		prepareRangeDevice(*pDevice);
@@ -391,13 +402,14 @@ void Dispatcher::init()
 	std::cout << "  Should be no longer than 1 minute..." << std::endl;
 
 	const auto deviceCount = m_vDevices.size();
-	m_sizeInitTotal = m_size * deviceCount;
+	m_sizeInitTotal = 0;
 	m_sizeInitDone = 0;
 
 	cl_event *const pInitEvents = new cl_event[deviceCount];
 
 	for (size_t i = 0; i < deviceCount; ++i)
 	{
+		m_sizeInitTotal += m_vDevices[i]->m_size;
 		pInitEvents[i] = clCreateUserEvent(m_clContext, NULL);
 		m_vDevices[i]->m_eventFinished = pInitEvents[i];
 		initBegin(*m_vDevices[i]);
@@ -586,8 +598,8 @@ void Dispatcher::initBegin(Device &d)
 
 void Dispatcher::initContinue(Device &d)
 {
-	size_t sizeLeft = m_size - d.m_sizeInitialized;
-	const size_t sizeInitLimit = m_size / 20;
+	size_t sizeLeft = d.m_size - d.m_sizeInitialized;
+	const size_t sizeInitLimit = (std::max)((size_t)1, d.m_size / 20);
 
 	// Print progress
 	const size_t percentDone = m_sizeInitDone * 100 / m_sizeInitTotal;
@@ -596,7 +608,7 @@ void Dispatcher::initContinue(Device &d)
 	if (sizeLeft)
 	{
 		cl_event event;
-		const size_t sizeRun = (std::min)(sizeInitLimit, (std::min)(sizeLeft, m_worksizeMax));
+		const size_t sizeRun = (std::min)(sizeInitLimit, (std::min)(sizeLeft, d.m_worksizeMax));
 		const auto resEnqueue = clEnqueueNDRangeKernel(d.m_clQueue, d.m_kernelInit, 1, &d.m_sizeInitialized, &sizeRun, NULL, 0, NULL, &event);
 		OpenCLException::throwIfError("kernel queueing failed during initilization", resEnqueue);
 
@@ -618,7 +630,7 @@ void Dispatcher::initContinue(Device &d)
 	else
 	{
 		// Printing one whole string at once helps in avoiding garbled output when executed in parallell
-		const std::string strOutput = "  GPU-" + toString(d.m_index) + " initialized ...Done";
+		const std::string strOutput = "  " + d.m_label + " initialized ...Done";
 		std::cout << strOutput << std::endl;
 		clSetUserEventStatus(d.m_eventFinished, CL_COMPLETE);
 	}
@@ -628,7 +640,7 @@ void Dispatcher::enqueueKernelDevice(Device &d, cl_kernel &clKernel, size_t work
 {
 	try
 	{
-		enqueueKernel(d.m_clQueue, clKernel, worksizeGlobal, d.m_worksizeLocal, pEvent);
+		enqueueKernel(d.m_clQueue, clKernel, worksizeGlobal, d.m_worksizeMax, d.m_worksizeLocal, pEvent);
 	}
 	catch (OpenCLException &e)
 	{
@@ -636,9 +648,9 @@ void Dispatcher::enqueueKernelDevice(Device &d, cl_kernel &clKernel, size_t work
 		if ((e.m_res == CL_INVALID_WORK_GROUP_SIZE || e.m_res == CL_INVALID_WORK_ITEM_SIZE) && d.m_worksizeLocal != 0)
 		{
 			std::cout << std::endl
-					  << "warning: local work size abandoned on GPU" << d.m_index << std::endl;
+					  << "warning: local work size abandoned on " << d.m_label << std::endl;
 			d.m_worksizeLocal = 0;
-			enqueueKernel(d.m_clQueue, clKernel, worksizeGlobal, d.m_worksizeLocal, pEvent);
+			enqueueKernel(d.m_clQueue, clKernel, worksizeGlobal, d.m_worksizeMax, d.m_worksizeLocal, pEvent);
 		}
 		else
 		{
@@ -647,9 +659,8 @@ void Dispatcher::enqueueKernelDevice(Device &d, cl_kernel &clKernel, size_t work
 	}
 }
 
-void Dispatcher::enqueueKernel(cl_command_queue &clQueue, cl_kernel &clKernel, size_t worksizeGlobal, const size_t worksizeLocal, cl_event *pEvent = NULL)
+void Dispatcher::enqueueKernel(cl_command_queue &clQueue, cl_kernel &clKernel, size_t worksizeGlobal, const size_t worksizeMax, const size_t worksizeLocal, cl_event *pEvent = NULL)
 {
-	const size_t worksizeMax = m_worksizeMax;
 	size_t worksizeOffset = 0;
 	while (worksizeGlobal)
 	{
@@ -670,13 +681,13 @@ void Dispatcher::dispatch(Device &d)
 #ifdef PROFANITY_DEBUG
 	cl_event eventInverse;
 	cl_event eventIterate;
-	enqueueKernelDevice(d, d.m_kernelInverse, m_size / m_inverseSize, &eventInverse);
-	enqueueKernelDevice(d, d.m_kernelIterate, m_size, &eventIterate);
+	enqueueKernelDevice(d, d.m_kernelInverse, d.m_size / d.m_inverseSize, &eventInverse);
+	enqueueKernelDevice(d, d.m_kernelIterate, d.m_size, &eventIterate);
 #else
-	enqueueKernelDevice(d, d.m_kernelInverse, m_size / m_inverseSize);
-	enqueueKernelDevice(d, d.m_kernelIterate, m_size);
+	enqueueKernelDevice(d, d.m_kernelInverse, d.m_size / d.m_inverseSize);
+	enqueueKernelDevice(d, d.m_kernelIterate, d.m_size);
 #endif
-	enqueueKernelDevice(d, d.m_kernelScore, m_size);
+	enqueueKernelDevice(d, d.m_kernelScore, d.m_size);
 	clFlush(d.m_clQueue);
 #ifdef PROFANITY_DEBUG
 	// We're actually not allowed to call clFinish here because this function is ultimately asynchronously called by OpenCL.
@@ -792,7 +803,7 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 		bool bDispatch = true;
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
-			d.m_speed.sample(m_size);
+			d.m_speed.sample(d.m_size);
 			printSpeed();
 			if (!m_quit && m_benchmarkSeconds > 0)
 			{
@@ -804,7 +815,7 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 			}
 			if (!m_quit && m_range.enabled)
 			{
-				const cl_ulong span = d.m_round + m_size;
+				const cl_ulong span = d.m_round + d.m_size;
 				if (span >= m_range.counterMax)
 				{
 					m_quit = true;
@@ -1011,7 +1022,7 @@ void Dispatcher::printFinalSpeed()
 	{
 		const auto curSpeed = e->m_speed.getSpeed();
 		speedTotal += curSpeed;
-		strGPUs += " GPU" + toString(e->m_index) + ": " + formatSpeed(curSpeed);
+		strGPUs += " " + e->m_label + ": " + formatSpeed(curSpeed);
 	}
 
 	std::cerr << std::endl
@@ -1030,7 +1041,7 @@ void Dispatcher::printSpeed()
 		{
 			const auto curSpeed = e->m_speed.getSpeed();
 			speedTotal += curSpeed;
-			strGPUs += " GPU" + toString(e->m_index) + ": " + formatSpeed(curSpeed);
+			strGPUs += " " + e->m_label + ": " + formatSpeed(curSpeed);
 			++i;
 		}
 
