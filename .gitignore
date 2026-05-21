@@ -11,6 +11,8 @@
 *_stderr.txt
 *.exp
 *.def
+cache-opencl.*.bin
+*.png
 opencl_exports.txt
 experiments/tmp/
 bin
@@ -18,3 +20,5 @@ profanity.x64
 profanity_build.exe
 result.txt
 README_dev.md
+hits*.txt
+run_*.txt

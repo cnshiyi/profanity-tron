@@ -8,6 +8,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <iomanip>
 
 #if defined(__APPLE__) || defined(__MACOSX)
 #include <OpenCL/cl.h>
@@ -22,12 +23,10 @@
 
 #include "Dispatcher.hpp"
 #include "ArgParser.hpp"
+#include "KernelSources.hpp"
 #include "Mode.hpp"
 #include "help.hpp"
 #include "OpenCLLoader.hpp"
-#include "kernel_profanity.hpp"
-#include "kernel_sha256.hpp"
-#include "kernel_keccak.hpp"
 
 std::string readFile(const char *const szFilename)
 {
@@ -112,6 +111,154 @@ bool printResult(const cl_int err)
 {
 	std::cout << ((err != CL_SUCCESS) ? toString(err) : "Done") << std::endl;
 	return err != CL_SUCCESS;
+}
+
+static std::string sanitizeFileComponent(const std::string &input)
+{
+	std::string output;
+	output.reserve(input.size());
+	for (const unsigned char c : input)
+	{
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
+		{
+			output.push_back((char)c);
+		}
+		else
+		{
+			output.push_back('_');
+		}
+	}
+	return output;
+}
+
+static std::string makeProgramCacheKey(
+	const std::vector<cl_device_id> &devices,
+	const std::string &buildOptions,
+	const std::string &kernelKeccak,
+	const std::string &kernelSha256,
+	const std::string &kernelProfanity)
+{
+	std::ostringstream ss;
+	ss << buildOptions << '\n' << kernelKeccak << '\n' << kernelSha256 << '\n' << kernelProfanity;
+	for (const auto &deviceId : devices)
+	{
+		ss << '\n' << clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_VENDOR);
+		ss << '\n' << clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_NAME);
+		ss << '\n' << clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_VERSION);
+		ss << '\n' << clGetWrapperString(clGetDeviceInfo, deviceId, CL_DRIVER_VERSION);
+	}
+
+	const auto text = ss.str();
+	unsigned long long hash = 1469598103934665603ull;
+	for (const unsigned char c : text)
+	{
+		hash ^= c;
+		hash *= 1099511628211ull;
+	}
+
+	std::ostringstream hex;
+	hex << std::hex << std::setfill('0') << std::setw(16) << hash;
+	return hex.str();
+}
+
+static std::string makeProgramCachePath(const std::vector<cl_device_id> &devices, const std::string &cacheKey)
+{
+	std::string deviceName = devices.empty() ? "unknown" : clGetWrapperString(clGetDeviceInfo, devices[0], CL_DEVICE_NAME);
+	return "cache-opencl." + sanitizeFileComponent(deviceName) + "." + cacheKey + ".bin";
+}
+
+static cl_program tryLoadProgramBinary(
+	cl_context context,
+	const std::vector<cl_device_id> &devices,
+	const std::string &cachePath)
+{
+	if (devices.empty())
+	{
+		return NULL;
+	}
+
+	std::ifstream in(cachePath, std::ios::in | std::ios::binary);
+	if (!in.is_open())
+	{
+		return NULL;
+	}
+
+	std::vector<unsigned char> binary((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+	if (binary.empty())
+	{
+		return NULL;
+	}
+
+	size_t binarySize = binary.size();
+	const unsigned char *binaryPtr = binary.data();
+	cl_int binaryStatus = CL_SUCCESS;
+	cl_int errorCode = CL_SUCCESS;
+	cl_program program = clCreateProgramWithBinary(context, (cl_uint)devices.size(), devices.data(), &binarySize, &binaryPtr, &binaryStatus, &errorCode);
+	if (errorCode != CL_SUCCESS || binaryStatus != CL_SUCCESS)
+	{
+		if (program != NULL)
+		{
+			clReleaseProgram(program);
+		}
+		return NULL;
+	}
+
+	return program;
+}
+
+static void saveProgramBinary(cl_program program, const std::string &cachePath)
+{
+	size_t sizeCount = 0;
+	clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES, sizeof(sizeCount), &sizeCount, NULL);
+	if (sizeCount == 0)
+	{
+		return;
+	}
+
+	std::vector<size_t> binarySizes(sizeCount, 0);
+	clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES, sizeof(size_t) * binarySizes.size(), binarySizes.data(), NULL);
+	if (binarySizes[0] == 0)
+	{
+		return;
+	}
+
+	std::vector<std::vector<unsigned char>> binaries(binarySizes.size());
+	std::vector<unsigned char *> binaryPtrs(binarySizes.size(), NULL);
+	for (size_t i = 0; i < binarySizes.size(); ++i)
+	{
+		if (binarySizes[i] == 0)
+		{
+			continue;
+		}
+		binaries[i].resize(binarySizes[i]);
+		binaryPtrs[i] = binaries[i].data();
+	}
+	clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(unsigned char *) * binaryPtrs.size(), binaryPtrs.data(), NULL);
+
+	std::ofstream out(cachePath, std::ios::out | std::ios::binary | std::ios::trunc);
+	if (!out.is_open())
+	{
+		return;
+	}
+
+	out.write(reinterpret_cast<const char *>(binaries[0].data()), (std::streamsize)binaries[0].size());
+}
+
+void printBuildLogs(cl_program program, const std::vector<cl_device_id> &devices)
+{
+	for (const auto &deviceId : devices)
+	{
+		size_t logSize = 0;
+		clGetProgramBuildInfo(program, deviceId, CL_PROGRAM_BUILD_LOG, 0, NULL, &logSize);
+		if (logSize == 0)
+		{
+			continue;
+		}
+
+		std::vector<char> log(logSize + 1, 0);
+		clGetProgramBuildInfo(program, deviceId, CL_PROGRAM_BUILD_LOG, logSize, log.data(), NULL);
+		std::cout << log.data() << std::endl;
+	}
 }
 
 bool hasCliSwitch(int argc, char **argv, const std::initializer_list<const char *> &names)
@@ -238,7 +385,7 @@ int main(int argc, char **argv)
 		bool bHelp = false;
 
 		std::string matchingInput;
-		std::string postUrl;
+		std::string resultsPath;
 		std::vector<size_t> vDeviceSkipIndex;
 		size_t worksizeLocal = 64;
 		size_t worksizeMax = 0;
@@ -247,20 +394,24 @@ int main(int argc, char **argv)
 		size_t prefixCount = 0;
 		size_t suffixCount = 6;
 		size_t quitCount = 0;
+		size_t benchmarkSeconds = 0;
+		bool noCache = false;
 		const bool userSetWorksizeLocal = hasCliSwitch(argc, argv, {"-w", "--work"});
 		const bool userSetWorksizeMax = hasCliSwitch(argc, argv, {"-W", "--work-max"});
 		const bool userSetInverseMultiple = hasCliSwitch(argc, argv, {"-I", "--inverse-multiple"});
 
 		argp.addSwitch('h', "help", bHelp);
 		argp.addSwitch('m', "matching", matchingInput);
+		argp.addSwitch('o', "output", resultsPath);
 		argp.addSwitch('w', "work", worksizeLocal);
 		argp.addSwitch('W', "work-max", worksizeMax);
-		argp.addSwitch('p', "post", postUrl);
 		argp.addSwitch('i', "inverse-size", inverseSize);
 		argp.addSwitch('I', "inverse-multiple", inverseMultiple);
 		argp.addSwitch('b', "prefix-count", prefixCount);
 		argp.addSwitch('e', "suffix-count", suffixCount);
 		argp.addSwitch('q', "quit-count", quitCount);
+		argp.addSwitch('t', "benchmark-seconds", benchmarkSeconds);
+		argp.addSwitch('n', "no-cache", noCache);
 		argp.addMultiSwitch('s', "skip", vDeviceSkipIndex);
 
 		if (!argp.parse())
@@ -281,12 +432,6 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		if (!postUrl.empty())
-		{
-			std::cout << "error: --post has been disabled for security reasons because it can leak private keys :<" << std::endl;
-			return 1;
-		}
-
 		if (prefixCount < 0)
 		{
 			prefixCount = 0;
@@ -303,9 +448,9 @@ int main(int argc, char **argv)
 			suffixCount = 6;
 		}
 
-		if (suffixCount > 10)
+		if (suffixCount > 12)
 		{
-			std::cout << "error: the number of suffix matches cannot be greater than 10 :<" << std::endl;
+			std::cout << "error: the number of suffix matches cannot be greater than 12 :<" << std::endl;
 			return 1;
 		}
 
@@ -376,24 +521,47 @@ int main(int argc, char **argv)
 
 		cl_program clProgram;
 		std::cout << "  Kernel compiling ..." << std::flush;
-		const char *szKernels[] = { kernel_keccak.c_str(), kernel_sha256.c_str(), kernel_profanity.c_str() };
-		clProgram = clCreateProgramWithSource(clContext, sizeof(szKernels) / sizeof(char *), szKernels, NULL, &errorCode);
-		if (printResult(clProgram, errorCode))
+		const std::string kernelKeccak = loadKernelSource(".", "kernel_keccak.cl");
+		const std::string kernelSha256 = loadKernelSource(".", "kernel_sha256.cl");
+		const std::string kernelProfanity = loadKernelSource(".", "kernel_profanity.cl");
+		const std::string strBuildOptions = "-D PROFANITY_INVERSE_SIZE=" + toString(inverseSize) + " -D PROFANITY_MAX_SCORE=" + toString(PROFANITY_MAX_SCORE);
+		const std::string cacheKey = makeProgramCacheKey(vDevices, strBuildOptions, kernelKeccak, kernelSha256, kernelProfanity);
+		const std::string cachePath = makeProgramCachePath(vDevices, cacheKey);
+		const bool allowCache = !noCache;
+
+		clProgram = allowCache ? tryLoadProgramBinary(clContext, vDevices, cachePath) : NULL;
+		if (clProgram == NULL)
+		{
+			const char *szKernels[] = { kernelKeccak.c_str(), kernelSha256.c_str(), kernelProfanity.c_str() };
+			clProgram = clCreateProgramWithSource(clContext, sizeof(szKernels) / sizeof(char *), szKernels, NULL, &errorCode);
+			if (printResult(clProgram, errorCode))
+			{
+				return 1;
+			}
+		}
+		else
+		{
+			std::cout << "Done (cache)" << std::endl;
+		}
+
+		std::cout << "  Program building ..." << std::flush;
+		const auto buildResult = clBuildProgram(clProgram, vDevices.size(), vDevices.data(), strBuildOptions.c_str(), NULL, NULL);
+		if (buildResult != CL_SUCCESS)
+		{
+			printBuildLogs(clProgram, vDevices);
+		}
+		if (printResult(buildResult))
 		{
 			return 1;
 		}
-
-		// Build the program
-		std::cout << "  Program building ..." << std::flush;
-		const std::string strBuildOptions = "-D PROFANITY_INVERSE_SIZE=" + toString(inverseSize) + " -D PROFANITY_MAX_SCORE=" + toString(PROFANITY_MAX_SCORE);
-		if (printResult(clBuildProgram(clProgram, vDevices.size(), vDevices.data(), strBuildOptions.c_str(), NULL, NULL)))
+		if (allowCache)
 		{
-			return 1;
+			saveProgramBinary(clProgram, cachePath);
 		}
 
 		std::cout << std::endl;
 
-		Dispatcher d(clContext, clProgram, mode, worksizeMax == 0 ? inverseSize * inverseMultiple : worksizeMax, inverseSize, inverseMultiple, quitCount, postUrl);
+		Dispatcher d(clContext, clProgram, mode, worksizeMax == 0 ? inverseSize * inverseMultiple : worksizeMax, inverseSize, inverseMultiple, quitCount, benchmarkSeconds, resultsPath);
 
 		for (auto &i : vDevices)
 		{

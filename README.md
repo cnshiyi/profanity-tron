@@ -2,14 +2,14 @@
 
 基于 GPU / OpenCL 的 Tron 靓号地址生成工具。
 
-本仓库当前按“源码优先”的方式维护，重点是尽量减少不透明产物和高风险能力。
+当前仓库按“源码优先、可审计优先”的方式维护，重点是尽量减少不透明产物和高风险能力。
 
 ## 当前状态
 
-- 仓库只保留源码，不再跟踪预编译可执行文件、库文件、批处理脚本或 OpenCL 二进制缓存。
-- 自动联网回传结果的能力已禁用，因为它可能泄露私钥。
-- 明文私钥写入文件的能力已移除。
-- 程序命中结果时默认只在控制台输出地址，不再直接打印私钥。
+- 仓库只保留源码，不再跟踪可执行文件、目标文件、库文件和 OpenCL 二进制缓存。
+- 结果上传入口已移除，避免把私钥或地址材料发往外部。
+- 默认只在控制台输出生成结果，不写入明文结果文件。
+- AMD 路径已移除，当前只维护 NVIDIA / 通用 OpenCL 主线。
 
 ## 功能范围
 
@@ -21,33 +21,33 @@
 
 ## 安全边界
 
-虽然高风险入口已经尽量移除，但不能把任何 C++ / OpenCL 项目描述成“绝对零风险”。仍需注意：
+这个项目已经尽量收紧了高风险入口，但不能把任何 C++ / OpenCL 项目描述成“绝对零风险”。仍需注意：
 
-- GPU 驱动、OpenCL 运行时、编译器和系统环境本身属于外部信任边界
-- 终端历史、日志、截图、录屏仍可能暴露敏感运行信息
-- 如果涉及真实资金，必须做独立验证和多签隔离
+- GPU 驱动、OpenCL 运行时、编译器和操作系统都属于外部信任边界
+- 终端历史、日志、截图和录屏仍可能泄露敏感运行信息
+- 涉及真实资金时，必须做独立验证和多签隔离
 
 ## 构建说明
 
-运行前需要宿主机已经具备可用的 OpenCL 开发 / 运行环境。
+运行前需要宿主机具备可用的 OpenCL 开发 / 运行环境。
 
 ### Windows
 
-使用 Visual Studio C++ 工具链构建，并从系统 SDK 或显卡驱动环境中提供 OpenCL 导入库。
+使用 Visual Studio C++ 工具链构建：
 
-如果当前环境里无法解析 `OpenCL.lib`，说明宿主机还没有准备好对应的 OpenCL 开发 / 链接环境；这不是仓库内置文件缺失，而是本机构建前置条件未满足。
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build.ps1 -Clean
+```
+
+如果当前环境无法解析 `OpenCL.lib`，说明宿主机的 OpenCL 开发 / 链接环境未准备好，不是仓库内文件缺失。
 
 ### Linux
 
-示例：
-
 ```bash
-g++ Dispatcher.cpp Mode.cpp precomp.cpp profanity.cpp SpeedSample.cpp -I./OpenCL/include -lOpenCL -O2 -o profanity.x64
+g++ Dispatcher.cpp KernelSources.cpp Mode.cpp precomp.cpp profanity.cpp SpeedSample.cpp -I./OpenCL/include -lOpenCL -O2 -o profanity.x64
 ```
 
 ### macOS
-
-示例：
 
 ```bash
 make
@@ -55,24 +55,23 @@ make
 
 ## 使用方法
 
-程序主要参数如下：
-
 ```text
 Usage: ./profanity [OPTIONS]
 
-  Help:
-    --help              Show help information
+  帮助:
+    --help              显示帮助信息
 
-  Modes with arguments:
-    --matching          Matching input, file or single address.
+  运行模式:
+    --matching          匹配输入，文件或单个地址
 
-  Matching configuration:
-    --prefix-count      Minimum number of prefix matches, default 0
-    --suffix-count      Minimum number of suffix matches, default 6
-    --quit-count        Exit the program when the generated number is greater than, default 0
+  匹配配置:
+    --prefix-count      最少前缀匹配位数，默认 0
+    --suffix-count      最少后缀匹配位数，默认 6
+    --quit-count        当满足条件时退出，默认 0
 
-  Device control:
-    --skip              Skip GPU device given by index
+  设备控制:
+    --skip              按索引跳过 GPU
+    --no-cache          禁用 OpenCL 二进制缓存
 ```
 
 示例：
@@ -92,23 +91,22 @@ Usage: ./profanity [OPTIONS]
 - 单个 Tron 地址
 - 每行一个模式的文本文件
 
-示例匹配文件见 [profanity.txt](C:/Users/399/Desktop/profanity-tron/profanity.txt)。
+示例匹配文件见 [profanity.txt](/C:/Users/399/Desktop/profanity-tron/profanity.txt)。
 
 ## 运行建议
 
-- 如果机器上同时有集成显卡和独立显卡，可以尝试 `--skip 1`，避免选错设备。
-- 新机器或新驱动环境第一次验证时，建议先用较低的 `--suffix-count`。
-- 在真实资金场景下，务必独立验证生成出的密钥材料。
-- 如果真要持有资产，优先使用多签和独立校验流程。
+- 如果机器上同时有集成显卡和独立显卡，可尝试 `--skip 1`，避免选错设备
+- 新机器或新驱动首次验证时，建议先用较低的 `--suffix-count`
+- 在真实资产场景下，务必独立验证生成出的密钥材料
+- 持有资产前，优先使用多签和独立校验流程
 
 ## 仓库洁净策略
 
-本仓库有意不跟踪以下文件：
+仓库默认不跟踪以下文件：
 
 - 可执行文件
 - 目标文件
 - 静态库或导入库
-- 批处理启动脚本
 - OpenCL 二进制缓存
-- 基准测试日志
+- 截图和基准临时文件
 - 明文结果文件

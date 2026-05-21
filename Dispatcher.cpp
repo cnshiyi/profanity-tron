@@ -9,6 +9,8 @@
 #include <random>
 #include <algorithm>
 #include <array>
+#include <tuple>
+#include <ctime>
 
 #include "precomp.hpp"
 #ifdef _WIN32
@@ -255,7 +257,8 @@ Dispatcher::Dispatcher(cl_context &clContext,
 					   const size_t inverseSize,
 					   const size_t inverseMultiple,
 					   const cl_uchar clScoreQuit,
-						 const std::string & postUrl)
+					   const size_t benchmarkSeconds,
+					   const std::string &resultsPath)
 	: m_clContext(clContext),
 	  m_clProgram(clProgram),
 	  m_mode(mode),
@@ -264,7 +267,11 @@ Dispatcher::Dispatcher(cl_context &clContext,
 	  m_size(inverseSize * inverseMultiple),
 	  m_clScoreMax(mode.score),
 	  m_clScoreQuit(clScoreQuit),
-		m_postUrl(postUrl),
+	  m_benchmarkSeconds(benchmarkSeconds),
+	  m_resultsPath(resultsPath),
+	  m_resultsValidated(0),
+	  m_resultsSaved(0),
+	  m_resultThreadStop(false),
 	  m_eventFinished(NULL),
 	  m_countPrint(0)
 {
@@ -272,6 +279,15 @@ Dispatcher::Dispatcher(cl_context &clContext,
 
 Dispatcher::~Dispatcher()
 {
+	{
+		std::lock_guard<std::mutex> lock(m_resultQueueMutex);
+		m_resultThreadStop = true;
+	}
+	m_resultQueueCv.notify_all();
+	if (m_resultThread.joinable())
+	{
+		m_resultThread.join();
+	}
 	for (auto *device : m_vDevices)
 	{
 		delete device;
@@ -300,6 +316,9 @@ void Dispatcher::run()
 
 	m_quit = false;
 	m_countRunning = m_vDevices.size();
+	timeRunStart = std::chrono::steady_clock::now();
+	m_resultThreadStop = false;
+	m_resultThread = std::thread(&Dispatcher::processResultQueue, this);
 
 	std::cout << std::endl;
 	std::cout << "Running..." << std::endl;
@@ -314,8 +333,26 @@ void Dispatcher::run()
 	}
 
 	clWaitForEvents(1, &m_eventFinished);
+	{
+		std::lock_guard<std::mutex> lock(m_resultQueueMutex);
+		m_resultThreadStop = true;
+	}
+	m_resultQueueCv.notify_all();
+	if (m_resultThread.joinable())
+	{
+		m_resultThread.join();
+	}
 	clReleaseEvent(m_eventFinished);
 	m_eventFinished = NULL;
+
+	if (m_benchmarkSeconds == 0)
+	{
+		std::cout << "  Validated hits: " << m_resultsValidated << std::endl;
+		if (!m_resultsPath.empty())
+		{
+			std::cout << "  Saved hits: " << m_resultsSaved << " -> " << m_resultsPath << std::endl;
+		}
+	}
 }
 
 void Dispatcher::init()
@@ -499,27 +536,13 @@ void Dispatcher::dispatch(Device &d)
 	OpenCLException::throwIfError("failed to set custom callback", res);
 }
 
-static void postResult(const std::string& privateKey, const std::string& address, const std::string& postUrl) {
-	if (!postUrl.empty()) {
-		(void)privateKey;
-		(void)address;
-		(void)postUrl;
-		static bool warned = false;
-		if (!warned) {
-			std::cout << "warning: --post is disabled for security reasons and no data will be sent" << std::endl;
-			warned = true;
-		}
-	}
-}
-
 static void printResult(
 	cl_ulong4 seed,
 	cl_ulong round,
 	result r,
 	cl_uchar score,
 	const std::chrono::time_point<std::chrono::steady_clock> &timeStart,
-	const Mode & mode,
-	const std::string & postUrl = std::string())
+	const Mode & mode)
 {
 	// Time delta
 	const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - timeStart).count();
@@ -551,9 +574,6 @@ static void printResult(
 	const std::string strVT100ClearLine = "\33[2K\r";
 	std::cout << strVT100ClearLine << "  Time: " << std::setw(5) << seconds << "s Address:" << strPublicTron << std::endl;
 
-	if(!postUrl.empty()) {
-		postResult(strPrivate, strPublicTron, postUrl);
-	}
 }
 
 void Dispatcher::handleResult(Device &d)
@@ -578,7 +598,10 @@ void Dispatcher::handleResult(Device &d)
 					m_quit = true;
 				}
 
-				printResult(d.m_clSeed, d.m_round, r, i, timeStart, m_mode, m_postUrl);
+				if (m_benchmarkSeconds == 0)
+				{
+					enqueueResult(d, r, i);
+				}
 			}
 
 			break;
@@ -605,12 +628,21 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 			std::lock_guard<std::mutex> lock(m_mutex);
 			d.m_speed.sample(m_size);
 			printSpeed();
+			if (!m_quit && m_benchmarkSeconds > 0)
+			{
+				const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - timeRunStart).count();
+				if (elapsed >= static_cast<long long>(m_benchmarkSeconds))
+				{
+					m_quit = true;
+				}
+			}
 
 			if (m_quit)
 			{
 				bDispatch = false;
 				if (--m_countRunning == 0)
 				{
+					printFinalSpeed();
 					clSetUserEventStatus(m_eventFinished, CL_COMPLETE);
 				}
 			}
@@ -621,6 +653,177 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 			dispatch(d);
 		}
 	}
+}
+
+void Dispatcher::enqueueResult(Device &d, const result &r, cl_uchar score)
+{
+	{
+		std::lock_guard<std::mutex> lock(m_resultQueueMutex);
+		m_resultQueue.emplace_back(d.m_clSeed, d.m_round, r, score);
+	}
+	m_resultQueueCv.notify_one();
+}
+
+bool Dispatcher::validateResult(const result &r) const
+{
+	const std::string strPublic = toHex(r.foundHash, 20);
+	const std::string tronAddress = toTron(strPublic);
+
+	if (tronAddress.size() != 34 || tronAddress[0] != 'T')
+	{
+		return false;
+	}
+
+	for (size_t j = 0; j < m_mode.matchingCount; ++j)
+	{
+		size_t scorePrefix = 1;
+		size_t scoreSuffix = 0;
+		const size_t dataBase = j * 20;
+
+		if (m_mode.prefixCount > 1)
+		{
+			for (size_t i = 1; i < 10 && scorePrefix < m_mode.prefixCount; ++i)
+			{
+				const size_t dataIndex = dataBase + i;
+				if (m_mode.data1[dataIndex] > 0 && ((unsigned char)tronAddress[i] & m_mode.data1[dataIndex]) == m_mode.data2[dataIndex])
+				{
+					++scorePrefix;
+				}
+				else
+				{
+					break;
+				}
+			}
+		}
+
+		if (m_mode.suffixCount > 0)
+		{
+			for (size_t i = 19; i > 10 && scoreSuffix < m_mode.suffixCount; --i)
+			{
+				const size_t dataIndex = dataBase + i;
+				const size_t addressIndex = i + 14;
+				if (m_mode.data1[dataIndex] > 0 && ((unsigned char)tronAddress[addressIndex] & m_mode.data1[dataIndex]) == m_mode.data2[dataIndex])
+				{
+					++scoreSuffix;
+				}
+				else
+				{
+					break;
+				}
+			}
+		}
+
+		if (scorePrefix >= m_mode.prefixCount && scoreSuffix >= m_mode.suffixCount)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void Dispatcher::processResultQueue()
+{
+	for (;;)
+	{
+		std::tuple<cl_ulong4, cl_ulong, result, cl_uchar> item;
+		{
+			std::unique_lock<std::mutex> lock(m_resultQueueMutex);
+			m_resultQueueCv.wait(lock, [&]() { return m_resultThreadStop || !m_resultQueue.empty(); });
+			if (m_resultQueue.empty())
+			{
+				if (m_resultThreadStop)
+				{
+					return;
+				}
+				continue;
+			}
+			item = m_resultQueue.front();
+			m_resultQueue.pop_front();
+		}
+
+		const cl_ulong4 seed = std::get<0>(item);
+		const cl_ulong round = std::get<1>(item);
+		const result r = std::get<2>(item);
+		const cl_uchar score = std::get<3>(item);
+		if (validateResult(r))
+		{
+			{
+				std::lock_guard<std::mutex> lock(m_mutex);
+				++m_resultsValidated;
+			}
+			printResult(seed, round, r, score, timeStart, m_mode);
+			appendResultToFile(seed, round, r, score);
+		}
+	}
+}
+
+void Dispatcher::appendResultToFile(const cl_ulong4 &seed, cl_ulong round, const result &r, cl_uchar score)
+{
+	if (m_resultsPath.empty())
+	{
+		return;
+	}
+
+	cl_ulong carry = 0;
+	cl_ulong4 seedRes;
+	seedRes.s[0] = seed.s[0] + round;
+	carry = seedRes.s[0] < round;
+	seedRes.s[1] = seed.s[1] + carry;
+	carry = !seedRes.s[1];
+	seedRes.s[2] = seed.s[2] + carry;
+	carry = !seedRes.s[2];
+	seedRes.s[3] = seed.s[3] + carry + r.foundId;
+
+	std::ostringstream privateKey;
+	privateKey << std::hex << std::setfill('0');
+	privateKey << std::setw(16) << seedRes.s[3] << std::setw(16) << seedRes.s[2] << std::setw(16) << seedRes.s[1] << std::setw(16) << seedRes.s[0];
+
+	const std::string strPublic = toHex(r.foundHash, 20);
+	const std::string strPublicTron = toTron(strPublic);
+	const std::time_t now = std::time(NULL);
+	std::tm timeInfo = {};
+#ifdef _WIN32
+	localtime_s(&timeInfo, &now);
+#else
+	localtime_r(&now, &timeInfo);
+#endif
+	char timeBuffer[32] = {0};
+	std::strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", &timeInfo);
+
+	std::ofstream out(m_resultsPath, std::ios::out | std::ios::app);
+	if (!out.is_open())
+	{
+		return;
+	}
+
+	out << "time=" << timeBuffer
+		<< " score=" << (unsigned int)score
+		<< " prefix=" << (unsigned int)m_mode.prefixCount
+		<< " suffix=" << (unsigned int)m_mode.suffixCount
+		<< " address=" << strPublicTron
+		<< " private=" << privateKey.str()
+		<< std::endl;
+
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		++m_resultsSaved;
+	}
+}
+
+void Dispatcher::printFinalSpeed()
+{
+	std::string strGPUs;
+	double speedTotal = 0;
+	for (auto &e : m_vDevices)
+	{
+		const auto curSpeed = e->m_speed.getSpeed();
+		speedTotal += curSpeed;
+		strGPUs += " GPU" + toString(e->m_index) + ": " + formatSpeed(curSpeed);
+	}
+
+	std::cerr << std::endl
+			  << "Final: " << formatSpeed(speedTotal) << " -" << strGPUs << std::endl;
 }
 
 void Dispatcher::printSpeed()

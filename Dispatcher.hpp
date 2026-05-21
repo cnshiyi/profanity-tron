@@ -6,6 +6,10 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <deque>
+#include <thread>
+#include <tuple>
+#include <condition_variable>
 
 #if defined(__APPLE__) || defined(__MACOSX)
 #include <OpenCL/cl.h>
@@ -77,7 +81,7 @@ class Dispatcher {
 		};
 
 	public:
-		Dispatcher(cl_context & clContext, cl_program & clProgram, const Mode mode, const size_t worksizeMax, const size_t inverseSize, const size_t inverseMultiple, const cl_uchar clScoreQuit = 0, const std::string & postUrl = std::string());
+		Dispatcher(cl_context & clContext, cl_program & clProgram, const Mode mode, const size_t worksizeMax, const size_t inverseSize, const size_t inverseMultiple, const cl_uchar clScoreQuit = 0, const size_t benchmarkSeconds = 0, const std::string & resultsPath = std::string());
 		~Dispatcher();
 
 		void addDevice(cl_device_id clDeviceId, const size_t worksizeLocal, const size_t index);
@@ -93,11 +97,16 @@ class Dispatcher {
 		void enqueueKernelDevice(Device & d, cl_kernel & clKernel, size_t worksizeGlobal, cl_event * pEvent);
 
 		void handleResult(Device & d);
+		void enqueueResult(Device & d, const result & r, cl_uchar score);
+		void processResultQueue();
+		bool validateResult(const result & r) const;
+		void appendResultToFile(const cl_ulong4 & seed, cl_ulong round, const result & r, cl_uchar score);
 		void randomizeSeed(Device & d);
 
 		void onEvent(cl_event event, cl_int status, Device & d);
 
 		void printSpeed();
+		void printFinalSpeed();
 
 	private:
 		static void CL_CALLBACK staticCallback(cl_event event, cl_int event_command_exec_status, void * user_data);
@@ -114,15 +123,23 @@ class Dispatcher {
 		const size_t m_size;
 		cl_uchar m_clScoreMax;
 		cl_uchar m_clScoreQuit;
-		std::string m_postUrl;
-
+		const size_t m_benchmarkSeconds;
+		const std::string m_resultsPath;
+		size_t m_resultsValidated;
+		size_t m_resultsSaved;
 		std::vector<Device *> m_vDevices;
 
 		cl_event m_eventFinished;
 
 		// Run information
 		std::mutex m_mutex;
+		std::mutex m_resultQueueMutex;
+		std::condition_variable m_resultQueueCv;
+		std::deque<std::tuple<cl_ulong4, cl_ulong, result, cl_uchar>> m_resultQueue;
+		std::thread m_resultThread;
+		bool m_resultThreadStop;
 		std::chrono::time_point<std::chrono::steady_clock> timeStart;
+		std::chrono::time_point<std::chrono::steady_clock> timeRunStart;
 		unsigned int m_countPrint;
 		unsigned int m_countRunning;
 		size_t m_sizeInitTotal;

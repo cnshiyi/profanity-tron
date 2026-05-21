@@ -1,9 +1,3 @@
-#ifndef HPP_KERNEL_KECCAK
-#define HPP_KERNEL_KECCAK
-
-#include <string>
-
-const std::string kernel_keccak = R"(
 typedef union {
 	uchar b[200];
 	ulong q[25];
@@ -133,6 +127,3 @@ void sha3_keccakf(ethhash * const h)
 		IOTA(st[0], keccakf_rndc[i]);
 	}
 }
-)";
-
-#endif /* HPP_KERNEL_KECCAK */

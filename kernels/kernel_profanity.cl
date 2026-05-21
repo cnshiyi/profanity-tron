@@ -1,9 +1,4 @@
-#ifndef HPP_KERNEL_PROFANITY
-#define HPP_KERNEL_PROFANITY
 
-#include <string>
-
-const std::string kernel_profanity = R"(
 #define MP_WORDS 8
 #define MP_BITS 32
 #define bswap32(n) (rotate(n & 0x00FF00FF, 24U)|(rotate(n, 8U) & 0x00FF00FF))
@@ -468,17 +463,10 @@ void profanity_result_update(
 #define BASE58_MOD58_WORD(input, offset) (((((uint)(input)[offset] << 24) | ((uint)(input)[(offset) + 1] << 16) | ((uint)(input)[(offset) + 2] << 8) | (uint)(input)[(offset) + 3])) % 58)
 
 uint base58_last_index_from_ethhash(__global const uchar *ethhash) {
-	uchar hash0[21];
 	uchar hash1[32];
 	uint rem = 65 % 58;
-	hash0[0] = 65;
-
-	for (uint i = 0; i < 20; i++) {
-		hash0[i + 1] = ethhash[i];
-	}
-
-	sha256(sizeof(hash0), hash0, hash1);
-	const uint checksumFirstWord = sha256_first_word(sizeof(hash1), hash1);
+	sha256_21_with_prefix_41(ethhash, hash1);
+	const uint checksumFirstWord = sha256_first_word_32(hash1);
 	rem = (rem * 16 + BASE58_MOD58_WORD(ethhash, 0)) % 58;
 	rem = (rem * 16 + BASE58_MOD58_WORD(ethhash, 4)) % 58;
 	rem = (rem * 16 + BASE58_MOD58_WORD(ethhash, 8)) % 58;
@@ -486,6 +474,40 @@ uint base58_last_index_from_ethhash(__global const uchar *ethhash) {
 	rem = (rem * 16 + BASE58_MOD58_WORD(ethhash, 16)) % 58;
 	rem = (rem * 16 + (checksumFirstWord % 58)) % 58;
 	return rem;
+}
+
+bool base58_tail_match_n(
+	__global const uchar *ethhash,
+	__constant const uchar * const data1,
+	__constant const uchar * const data2,
+	const uint tailCount)
+{
+	uchar tron_hash[25];
+	ethhash_to_tronhash(ethhash, tron_hash);
+
+	for (uint step = 0; step < tailCount; ++step)
+	{
+		const uint expectedIndex = 19 - step;
+		if (data1[expectedIndex] != 0xff)
+		{
+			return false;
+		}
+
+		uint rem = 0;
+		for (uint i = 0; i < 25; ++i)
+		{
+			const uint value = (rem << 8) | tron_hash[i];
+			tron_hash[i] = value / 58;
+			rem = value - ((uint)tron_hash[i] * 58);
+		}
+
+		if (alphabet[rem] != data2[expectedIndex])
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 __kernel void profanity_score_matching(
@@ -513,12 +535,36 @@ __kernel void profanity_score_matching(
 		return;
 	}
 
+	if (matchingCount == 1 && prefixCount == 0 && suffixCount >= 3 && suffixCount <= 12)
+	{
+		bool matched = false;
+		switch (suffixCount)
+		{
+		case 3: matched = base58_tail_match_n(hash, data1, data2, 3); break;
+		case 4: matched = base58_tail_match_n(hash, data1, data2, 4); break;
+		case 5: matched = base58_tail_match_n(hash, data1, data2, 5); break;
+		case 6: matched = base58_tail_match_n(hash, data1, data2, 6); break;
+		case 7: matched = base58_tail_match_n(hash, data1, data2, 7); break;
+		case 8: matched = base58_tail_match_n(hash, data1, data2, 8); break;
+		case 9: matched = base58_tail_match_n(hash, data1, data2, 9); break;
+		case 10: matched = base58_tail_match_n(hash, data1, data2, 10); break;
+		case 11: matched = base58_tail_match_n(hash, data1, data2, 11); break;
+		case 12: matched = base58_tail_match_n(hash, data1, data2, 12); break;
+		default: break;
+		}
+		if (matched)
+		{
+			profanity_result_update(id, hash, pResult, scoreMax);
+		}
+		return;
+	}
+
 	uchar tron_hash[25];
 	ethhash_to_tronhash(hash, tron_hash);
 
 	char tron_hash_address[34];
- 	base58_encode(tron_hash, tron_hash_address, 25);
-	
+	base58_encode(tron_hash, tron_hash_address, 25);
+
 	for(uint j = 0; j < matchingCount; j++) {
 		uint scorePrefix = 1;
 		uint scoreSuffix = 0;
@@ -550,6 +596,3 @@ __kernel void profanity_score_matching(
 		}
 	}
 }
-)";
-
-#endif /* HPP_KERNEL_PROFANITY */

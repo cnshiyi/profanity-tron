@@ -5,6 +5,7 @@ param(
     [int]$PrefixCount = 1,
     [int]$SuffixCount = 1,
     [int]$QuitCount = 1,
+    [int]$BenchmarkSeconds = 0,
     [string]$Notes = "",
     [switch]$BuildFirst
 )
@@ -16,7 +17,20 @@ if ($BuildFirst)
     & (Join-Path $PSScriptRoot "build.ps1")
 }
 
-$command = "$ExePath --matching $Matching --prefix-count $PrefixCount --suffix-count $SuffixCount --quit-count $QuitCount"
+$resolvedExePath = if ([System.IO.Path]::IsPathRooted($ExePath)) {
+    $ExePath
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $ExePath))
+}
+$command = "$resolvedExePath --matching $Matching --prefix-count $PrefixCount --suffix-count $SuffixCount"
+if ($BenchmarkSeconds -gt 0)
+{
+    $command += " --benchmark-seconds $BenchmarkSeconds"
+}
+else
+{
+    $command += " --quit-count $QuitCount"
+}
 $stdoutPath = Join-Path $PSScriptRoot "experiments\\tmp\\benchmark_stdout.txt"
 $stderrPath = Join-Path $PSScriptRoot "experiments\\tmp\\benchmark_stderr.txt"
 $tmpDir = Split-Path $stdoutPath -Parent
@@ -25,8 +39,18 @@ if (!(Test-Path $tmpDir))
     New-Item -ItemType Directory -Path $tmpDir | Out-Null
 }
 
-$process = Start-Process -FilePath $ExePath `
-    -ArgumentList @("--matching", $Matching, "--prefix-count", "$PrefixCount", "--suffix-count", "$SuffixCount", "--quit-count", "$QuitCount") `
+$argumentList = @("--matching", $Matching, "--prefix-count", "$PrefixCount", "--suffix-count", "$SuffixCount")
+if ($BenchmarkSeconds -gt 0)
+{
+    $argumentList += @("--benchmark-seconds", "$BenchmarkSeconds")
+}
+else
+{
+    $argumentList += @("--quit-count", "$QuitCount")
+}
+
+$process = Start-Process -FilePath $resolvedExePath `
+    -ArgumentList $argumentList `
     -RedirectStandardOutput $stdoutPath `
     -RedirectStandardError $stderrPath `
     -NoNewWindow `
@@ -85,7 +109,11 @@ if ($output -match "Initialization time: (\d+) seconds")
 {
     $initSeconds = $Matches[1]
 }
-if ($output -match "Total:\s+([0-9.]+)\s+MH/s")
+if ($output -match "Final:\s+([0-9.]+)\s+MH/s")
+{
+    $speed = $Matches[1]
+}
+elseif ($output -match "Total:\s+([0-9.]+)\s+MH/s")
 {
     $speed = $Matches[1]
 }

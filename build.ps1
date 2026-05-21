@@ -106,6 +106,10 @@ $commandLine
 $repo = $PSScriptRoot
 Set-Location $repo
 
+Get-Process profanity* -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -eq (Join-Path $repo $OutputName) } |
+    Stop-Process -Force -ErrorAction SilentlyContinue
+
 if ($Clean) {
     Get-ChildItem -LiteralPath $repo -Filter *.obj -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $repo $OutputName), (Join-Path $repo "OpenCL.def"), (Join-Path $repo "OpenCL.exp"), (Join-Path $repo "OpenCL.lib") -ErrorAction SilentlyContinue
@@ -115,8 +119,8 @@ $vsDevCmd = Find-VsDevCmd
 $null = Ensure-OpenClImportLibrary
 
 $optimizationFlags = if ($Configuration -eq "Debug") { "/Od /Zi" } else { "/O2" }
-$compileCmd = "cl /nologo /EHsc /std:c++14 /utf-8 $optimizationFlags /I .\OpenCL\include /c Dispatcher.cpp Mode.cpp precomp.cpp profanity.cpp SpeedSample.cpp"
-$linkCmd = "link /nologo /OUT:$OutputName Dispatcher.obj Mode.obj precomp.obj profanity.obj SpeedSample.obj OpenCL.lib bcrypt.lib"
+$compileCmd = "cl /nologo /EHsc /std:c++14 /utf-8 $optimizationFlags /I .\OpenCL\include /c Dispatcher.cpp KernelSources.cpp Mode.cpp precomp.cpp profanity.cpp SpeedSample.cpp"
+$linkCmd = "link /nologo /OUT:$OutputName Dispatcher.obj KernelSources.obj Mode.obj precomp.obj profanity.obj SpeedSample.obj OpenCL.lib bcrypt.lib"
 
 Invoke-BuildInVsEnv $vsDevCmd $compileCmd
 Invoke-BuildInVsEnv $vsDevCmd $linkCmd
