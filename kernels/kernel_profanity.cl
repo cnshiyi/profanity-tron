@@ -498,6 +498,18 @@ void base58_tail_indices_from_ethhash(
 	}
 }
 
+uchar base58_next_tail_index(__private uchar *tron_hash)
+{
+	uint rem = 0;
+	for (uint i = 0; i < 25; ++i)
+	{
+		const uint value = (rem << 8) | tron_hash[i];
+		tron_hash[i] = value / 58;
+		rem = value - ((uint)tron_hash[i] * 58);
+	}
+	return (uchar)rem;
+}
+
 bool base58_tail_match_data(
 	__private const uchar *tailIndices,
 	__constant const uchar * const data1,
@@ -510,6 +522,23 @@ bool base58_tail_match_data(
 		const uint expectedIndex = dataBase + 19 - step;
 		const uchar mask = data1[expectedIndex];
 		if (mask == 0 || (alphabet[tailIndices[step]] & mask) != data2[expectedIndex])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool base58_tail_match_indexed(
+	__private const uchar *tailIndices,
+	__constant const uchar * const suffixTailIndex,
+	const uint targetBase,
+	const uint tailCount)
+{
+	for (uint step = 0; step < tailCount; ++step)
+	{
+		if (tailIndices[step] != suffixTailIndex[targetBase + step])
 		{
 			return false;
 		}
@@ -534,6 +563,11 @@ __kernel void profanity_score_matching(
 	__global result * const pResult, 
 	__constant const uchar * const data1, 
 	__constant const uchar * const data2, 
+	__constant const uchar * const suffix1Allowed,
+	__constant const uchar * const suffixTailExact,
+	__constant const uchar * const suffixTailIndex,
+	__constant const uchar * const suffixTailAllExact,
+	__constant const uchar * const suffixTail2Allowed,
 	const uchar scoreMax, 
 	const uchar matchingCount, 
 	const uchar prefixCount, 
@@ -562,13 +596,8 @@ __kernel void profanity_score_matching(
 
 	if (matchingCount > 1 && prefixCount <= 1 && suffixCount == 1) {
 		const uint suffixIndex = base58_last_index_from_ethhash(hash);
-		for (uint j = 0; j < matchingCount; ++j) {
-			const uint dataIndex = j * 20 + 19;
-			const uchar mask = data1[dataIndex];
-			if (mask > 0 && (alphabet[suffixIndex] & mask) == data2[dataIndex]) {
-				profanity_result_update(id, hash, pResult, scoreMax);
-				break;
-			}
+		if (suffix1Allowed[suffixIndex]) {
+			profanity_result_update(id, hash, pResult, scoreMax);
 		}
 		return;
 	}
@@ -576,10 +605,42 @@ __kernel void profanity_score_matching(
 	if (matchingCount > 1 && prefixCount <= 1 && suffixCount >= 2 && suffixCount <= 12)
 	{
 		uchar tailIndices[12];
+		if (suffixTailAllExact[0])
+		{
+			uchar tron_hash[25];
+			ethhash_to_tronhash(hash, tron_hash);
+
+			tailIndices[0] = base58_next_tail_index(tron_hash);
+			tailIndices[1] = base58_next_tail_index(tron_hash);
+
+			const uint allowIndex = (uint)tailIndices[0] * 58u + (uint)tailIndices[1];
+			if (!suffixTail2Allowed[allowIndex])
+			{
+				return;
+			}
+
+			for (uint step = 2; step < suffixCount; ++step)
+			{
+				tailIndices[step] = base58_next_tail_index(tron_hash);
+			}
+
+			for (uint j = 0; j < matchingCount; ++j)
+			{
+				if (base58_tail_match_indexed(tailIndices, suffixTailIndex, j * 12, suffixCount))
+				{
+					profanity_result_update(id, hash, pResult, scoreMax);
+					break;
+				}
+			}
+			return;
+		}
 		base58_tail_indices_from_ethhash(hash, tailIndices, suffixCount);
 		for (uint j = 0; j < matchingCount; ++j)
 		{
-			if (base58_tail_match_data(tailIndices, data1, data2, j * 20, suffixCount))
+			const bool matched = suffixTailExact[j]
+				? base58_tail_match_indexed(tailIndices, suffixTailIndex, j * 12, suffixCount)
+				: base58_tail_match_data(tailIndices, data1, data2, j * 20, suffixCount);
+			if (matched)
 			{
 				profanity_result_update(id, hash, pResult, scoreMax);
 				break;
