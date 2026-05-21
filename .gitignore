@@ -22,3 +22,6 @@ result.txt
 README_dev.md
 hits*.txt
 run_*.txt
+desktop-app/node_modules/
+desktop-app/runtime/
+runtime/
