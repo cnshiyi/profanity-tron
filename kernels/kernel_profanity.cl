@@ -518,15 +518,12 @@ uint tronhash_mod_3364_from_ethhash(__global const uchar *ethhash, __private uin
 	*checksumFirstWord = checksum;
 
 	uint rem = 65u % 3364u;
-#pragma unroll
-	for (uint i = 0; i < 20; ++i)
-	{
-		rem = ((rem << 8) + (uint)ethhash[i]) % 3364u;
-	}
-	rem = ((rem << 8) + ((checksum >> 24) & 0xffu)) % 3364u;
-	rem = ((rem << 8) + ((checksum >> 16) & 0xffu)) % 3364u;
-	rem = ((rem << 8) + ((checksum >> 8) & 0xffu)) % 3364u;
-	rem = ((rem << 8) + (checksum & 0xffu)) % 3364u;
+	rem = (rem * 480u + ((((uint)ethhash[0] << 24) | ((uint)ethhash[1] << 16) | ((uint)ethhash[2] << 8) | (uint)ethhash[3]) % 3364u)) % 3364u;
+	rem = (rem * 480u + ((((uint)ethhash[4] << 24) | ((uint)ethhash[5] << 16) | ((uint)ethhash[6] << 8) | (uint)ethhash[7]) % 3364u)) % 3364u;
+	rem = (rem * 480u + ((((uint)ethhash[8] << 24) | ((uint)ethhash[9] << 16) | ((uint)ethhash[10] << 8) | (uint)ethhash[11]) % 3364u)) % 3364u;
+	rem = (rem * 480u + ((((uint)ethhash[12] << 24) | ((uint)ethhash[13] << 16) | ((uint)ethhash[14] << 8) | (uint)ethhash[15]) % 3364u)) % 3364u;
+	rem = (rem * 480u + ((((uint)ethhash[16] << 24) | ((uint)ethhash[17] << 16) | ((uint)ethhash[18] << 8) | (uint)ethhash[19]) % 3364u)) % 3364u;
+	rem = (rem * 480u + (checksum % 3364u)) % 3364u;
 	return rem;
 }
 
