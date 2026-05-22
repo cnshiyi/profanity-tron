@@ -2,12 +2,16 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
 
-    [string]$OutputDirectory = $PSScriptRoot
+    [string]$OutputDirectory = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $repo = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    $OutputDirectory = $repo
+}
+
 $dist = Join-Path $OutputDirectory "profanity-tron-windows-$Version"
 $zip = Join-Path $OutputDirectory "profanity-tron-windows-$Version.zip"
 
