@@ -691,6 +691,26 @@ __kernel void profanity_score_matching(
 		return;
 	}
 
+	if (matchingCount == 1 && prefixCount <= 1 && suffixCount == 2)
+	{
+		const uchar mask0 = data1[19];
+		const uchar mask1 = data1[18];
+		if (mask0 == 0xff && mask1 == 0xff)
+		{
+			const uchar expected0 = data2[19];
+			const uchar expected1 = data2[18];
+			uint checksumFirstWord;
+			const uint mod3364 = tronhash_mod_3364_from_ethhash(hash, &checksumFirstWord);
+			const uchar tail0 = (uchar)(mod3364 % 58u);
+			const uchar tail1 = (uchar)((mod3364 / 58u) % 58u);
+			if (alphabet[tail0] == expected0 && alphabet[tail1] == expected1)
+			{
+				profanity_result_update(id, hash, pResult, scoreMax);
+			}
+			return;
+		}
+	}
+
 	if (matchingCount == 1 && prefixCount <= 1 && suffixCount >= 3 && suffixCount <= 12)
 	{
 		bool matched = false;
