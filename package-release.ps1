@@ -12,8 +12,9 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = $repo
 }
 
-$dist = Join-Path $OutputDirectory "profanity-tron-windows-$Version"
-$zip = Join-Path $OutputDirectory "profanity-tron-windows-$Version.zip"
+$packageName = "shiyi-tron-windows-$Version"
+$dist = Join-Path $OutputDirectory $packageName
+$zip = Join-Path $OutputDirectory "$packageName.zip"
 
 if (Test-Path $dist) {
     Remove-Item -LiteralPath $dist -Recurse -Force
