@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $repo = $PSScriptRoot
 $source = Join-Path $repo "TronStudio.cs"
-$output = Join-Path $repo "TronStudio.exe"
+$output = Join-Path $repo "start.exe"
 $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
 if (!(Test-Path $csc)) {

@@ -87,7 +87,7 @@ namespace ProfanityTronStudio
         public MainForm()
         {
             rootDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            exePath = Path.Combine(rootDir, "profanity.x64.exe");
+            exePath = Path.Combine(rootDir, "shiyi.exe");
             runtimeDir = Path.Combine(rootDir, "runtime");
             runOutputDir = Path.Combine(runtimeDir, "runs");
             defaultOutputPath = Path.Combine(runtimeDir, "hits_all.txt");
@@ -121,7 +121,7 @@ namespace ProfanityTronStudio
             AddLabel(topPanel, UiText.T("540E 7F00"), 130, 74, 36);
             suffixBox = AddNumberBox(topPanel, 168, 70, 58, 0, 12, 5);
             AddLabel(topPanel, UiText.T("6570 91CF"), 240, 74, 36);
-            countBox = AddNumberBox(topPanel, 278, 70, 70, 1, 1000000, 10);
+            countBox = AddNumberBox(topPanel, 278, 70, 70, 1, 1000000, 999);
 
             AddLabel(topPanel, UiText.T("8F93 51FA 6587 4EF6"), 22, 106, 58);
             outputBox = AddTextBox(topPanel, 82, 102, 330, defaultOutputPath);
@@ -239,13 +239,15 @@ namespace ProfanityTronStudio
             }
             return string.Join(Environment.NewLine, new[]
             {
-                "TTTTTTTTTTTTTTTTTTTTAAAAAAAAAAHASH",
-                "TTTTTTTTTTTTTTTTTTTTBBBBBBBBBBHASH",
-                "TTTTTTTTTTTTTTTTTTTTCCCCCCCCCCHASH",
-                "TTTTTTTTTTTTTTTTTTTTDDDDDDDDDDHASH",
-                "TTTTTTTTTTTTTTTTTTTTEEEEEEEEEEHASH",
-                "TTTTTTTTTTTTTTTTTTTTFFFFFFFFFFHASH",
-                "TTTTTTTTTTTTTTTTTTTTGGGGGGGGGGHASH"
+                "TTTTTTTTTTTTTTTTTTTT11111111111111",
+                "TTTTTTTTTTTTTTTTTTTT22222222222222",
+                "TTTTTTTTTTTTTTTTTTTT33333333333333",
+                "TTTTTTTTTTTTTTTTTTTT44444444444444",
+                "TTTTTTTTTTTTTTTTTTTT55555555555555",
+                "TTTTTTTTTTTTTTTTTTTT66666666666666",
+                "TTTTTTTTTTTTTTTTTTTT77777777777777",
+                "TTTTTTTTTTTTTTTTTTTT88888888888888",
+                "TTTTTTTTTTTTTTTTTTTT99999999999999"
             });
         }
 
@@ -902,7 +904,7 @@ namespace ProfanityTronStudio
                         var normalizedFileName = Path.GetFullPath(fileName);
                         var isThisGenerator = string.Equals(normalizedFileName, normalizedExePath, StringComparison.OrdinalIgnoreCase);
                         var isProjectGenerator = normalizedFileName.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(Path.GetFileName(normalizedFileName), "profanity.x64.exe", StringComparison.OrdinalIgnoreCase);
+                            string.Equals(Path.GetFileName(normalizedFileName), "shiyi.exe", StringComparison.OrdinalIgnoreCase);
 
                         if (isThisGenerator || isProjectGenerator)
                         {

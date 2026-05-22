@@ -25,8 +25,8 @@ if (Test-Path $zip) {
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $dist "kernels") | Out-Null
 
-Copy-Item -LiteralPath (Join-Path $repo "TronStudio.exe") -Destination (Join-Path $dist "TronStudio.exe") -Force
-Copy-Item -LiteralPath (Join-Path $repo "profanity.x64.exe") -Destination (Join-Path $dist "profanity.x64.exe") -Force
+Copy-Item -LiteralPath (Join-Path $repo "start.exe") -Destination (Join-Path $dist "start.exe") -Force
+Copy-Item -LiteralPath (Join-Path $repo "shiyi.exe") -Destination (Join-Path $dist "shiyi.exe") -Force
 Copy-Item -LiteralPath (Join-Path $repo "BUILD.md") -Destination (Join-Path $dist "BUILD.md") -Force
 Copy-Item -LiteralPath (Join-Path $repo "README.md") -Destination (Join-Path $dist "README.md") -Force
 Copy-Item -LiteralPath (Join-Path $repo "kernels\kernel_keccak.cl") -Destination (Join-Path $dist "kernels\kernel_keccak.cl") -Force

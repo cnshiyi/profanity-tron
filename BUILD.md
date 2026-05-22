@@ -2,10 +2,10 @@
 
 This project contains two build targets:
 
-- `profanity.x64.exe`: the C++ / OpenCL command-line generator.
-- `desktop-app`: an Electron desktop wrapper that launches the command-line binary.
+- `shiyi.exe`: the C++ / OpenCL command-line generator.
+- `start.exe`: the Windows desktop launcher that starts `shiyi.exe`.
 
-Build the command-line binary first. The desktop app expects `profanity.x64.exe` to exist in the repository root.
+Build the command-line binary first. The desktop app expects `shiyi.exe` to exist in the repository root.
 
 ## Requirements
 
@@ -56,7 +56,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1 -Clean
 Expected output:
 
 ```text
-Build complete: <repo>\profanity.x64.exe
+Build complete: <repo>\shiyi.exe
 ```
 
 Useful options:
@@ -64,7 +64,7 @@ Useful options:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 powershell -ExecutionPolicy Bypass -File .\build.ps1 -Configuration Debug
-powershell -ExecutionPolicy Bypass -File .\build.ps1 -OutputName profanity-debug.exe
+powershell -ExecutionPolicy Bypass -File .\build.ps1 -OutputName shiyi-debug.exe
 ```
 
 ### Linux
@@ -80,7 +80,7 @@ If your OpenCL headers are not in the default include path, build manually and p
 
 ```bash
 g++ Dispatcher.cpp KernelSources.cpp Mode.cpp precomp.cpp profanity.cpp SpeedSample.cpp \
-  -std=c++11 -Wall -O2 -mcmodel=large -I./OpenCL/include -lOpenCL -o profanity.x64
+  -std=c++11 -Wall -O2 -mcmodel=large -I./OpenCL/include -lOpenCL -o shiyi
 ```
 
 ### macOS
@@ -101,32 +101,31 @@ After building, run a short test with a low match difficulty:
 ### Windows
 
 ```powershell
-.\profanity.x64.exe --matching .\profanity.txt --suffix-count 3 --quit-count 1
+.\shiyi.exe --matching .\profanity.txt --suffix-count 3 --quit-count 1
 ```
 
 ### Linux / macOS
 
 ```bash
-./profanity.x64 --matching profanity.txt --suffix-count 3 --quit-count 1
+./shiyi --matching profanity.txt --suffix-count 3 --quit-count 1
 ```
 
 If the machine has both integrated and dedicated GPUs, try `--skip 1` to select the next OpenCL device:
 
 ```powershell
-.\profanity.x64.exe --matching .\profanity.txt --suffix-count 3 --quit-count 1 --skip 1
+.\shiyi.exe --matching .\profanity.txt --suffix-count 3 --quit-count 1 --skip 1
 ```
 
 ## Run The Desktop App
 
-Build `profanity.x64.exe` first, then run:
+Build `shiyi.exe` first, then run:
 
 ```powershell
-cd .\desktop-app
-npm install
-npm start
+powershell -ExecutionPolicy Bypass -File .\build-client.ps1
+.\start.exe
 ```
 
-The desktop app launches the binary from the repository root. If the binary is missing, rebuild the command-line tool before starting Electron.
+The desktop app launches `shiyi.exe` from the repository root. If the binary is missing, rebuild the command-line tool before starting the desktop app.
 
 ## Common Issues
 
@@ -146,9 +145,9 @@ On Windows, use `build.ps1` instead of invoking `cl` manually. The script genera
 
 Install the Microsoft Visual C++ Redistributable or Visual Studio Build Tools.
 
-### Electron starts but generation fails
+### Desktop app starts but generation fails
 
-Confirm that `profanity.x64.exe` exists in the repository root and that the command-line smoke test works outside Electron.
+Confirm that `shiyi.exe` exists in the repository root and that the command-line smoke test works outside Electron.
 
 ## Clean Generated Files
 

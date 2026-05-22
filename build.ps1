@@ -1,6 +1,6 @@
 param(
     [string]$Configuration = "Release",
-    [string]$OutputName = "profanity.x64.exe",
+    [string]$OutputName = "shiyi.exe",
     [switch]$Clean
 )
 

@@ -1,6 +1,6 @@
 param(
     [string]$Version = "perf-v002",
-    [string]$ExePath = ".\\profanity.x64.exe",
+    [string]$ExePath = ".\\shiyi.exe",
     [string]$Matching = "TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D",
     [int]$PrefixCount = 1,
     [int]$SuffixCount = 1,

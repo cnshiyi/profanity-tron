@@ -2,7 +2,7 @@ CC ?= g++
 CDEFINES =
 SOURCES = Dispatcher.cpp Mode.cpp precomp.cpp profanity.cpp SpeedSample.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
-EXECUTABLE = profanity.x64
+EXECUTABLE = shiyi
 
 ifeq ($(OS),Windows_NT)
 	LDFLAGS = OpenCL.lib bcrypt.lib
