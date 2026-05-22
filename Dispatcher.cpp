@@ -559,6 +559,7 @@ void Dispatcher::initBegin(Device &d)
 	d.m_memResult.setKernelArg(kernelInit, 3);
 	CLMemory<cl_ulong4>::setKernelArg(kernelInit, 4, d.m_clSeed);
 	CLMemory<cl_uchar>::setKernelArg(kernelInit, 5, m_range.enabled && m_range.descending ? 1 : 0);
+	CLMemory<cl_uchar>::setKernelArg(kernelInit, 6, m_range.enabled ? static_cast<cl_uchar>(m_range.counterShift) : 0);
 
 	// Kernel arguments - profanity_inverse
 	cl_kernel &kernelInverse = d.m_kernelInverse;
@@ -719,10 +720,11 @@ static void printResult(
 		seedRes.s[0] = seed.s[0] + round;
 		cl_ulong carry = seedRes.s[0] < round;
 		seedRes.s[1] = seed.s[1] + carry;
-		carry = !seedRes.s[1];
+		carry = carry && !seedRes.s[1];
 		seedRes.s[2] = seed.s[2] + carry;
-		carry = !seedRes.s[2];
-		seedRes.s[3] = range.descending ? seed.s[3] + carry - r.foundId : seed.s[3] + carry + r.foundId;
+		carry = carry && !seedRes.s[2];
+		const cl_ulong rangeOffset = static_cast<cl_ulong>(r.foundId) << range.counterShift;
+		seedRes.s[3] = range.descending ? seed.s[3] + carry - rangeOffset : seed.s[3] + carry + rangeOffset;
 	}
 	else
 	{
@@ -730,9 +732,9 @@ static void printResult(
 		seedRes.s[0] = seed.s[0] + round;
 		carry = seedRes.s[0] < round;
 		seedRes.s[1] = seed.s[1] + carry;
-		carry = !seedRes.s[1];
+		carry = carry && !seedRes.s[1];
 		seedRes.s[2] = seed.s[2] + carry;
-		carry = !seedRes.s[2];
+		carry = carry && !seedRes.s[2];
 		seedRes.s[3] = seed.s[3] + carry + r.foundId;
 	}
 
@@ -815,8 +817,7 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 			}
 			if (!m_quit && m_range.enabled)
 			{
-				const cl_ulong span = d.m_round + d.m_size;
-				if (span >= m_range.counterMax)
+				if (d.m_round >= m_range.counterMax)
 				{
 					m_quit = true;
 				}
@@ -857,10 +858,11 @@ cl_ulong4 Dispatcher::candidatePrivate(const cl_ulong4 &seed, cl_ulong round, cl
 		seedRes.s[0] = seed.s[0] + round;
 		cl_ulong carry = seedRes.s[0] < round;
 		seedRes.s[1] = seed.s[1] + carry;
-		carry = !seedRes.s[1];
+		carry = carry && !seedRes.s[1];
 		seedRes.s[2] = seed.s[2] + carry;
-		carry = !seedRes.s[2];
-		seedRes.s[3] = m_range.descending ? seed.s[3] + carry - foundId : seed.s[3] + carry + foundId;
+		carry = carry && !seedRes.s[2];
+		const cl_ulong rangeOffset = static_cast<cl_ulong>(foundId) << m_range.counterShift;
+		seedRes.s[3] = m_range.descending ? seed.s[3] + carry - rangeOffset : seed.s[3] + carry + rangeOffset;
 		return seedRes;
 	}
 
@@ -868,9 +870,9 @@ cl_ulong4 Dispatcher::candidatePrivate(const cl_ulong4 &seed, cl_ulong round, cl
 	seedRes.s[0] = seed.s[0] + round;
 	carry = seedRes.s[0] < round;
 	seedRes.s[1] = seed.s[1] + carry;
-	carry = !seedRes.s[1];
+	carry = carry && !seedRes.s[1];
 	seedRes.s[2] = seed.s[2] + carry;
-	carry = !seedRes.s[2];
+	carry = carry && !seedRes.s[2];
 	seedRes.s[3] = seed.s[3] + carry + foundId;
 	return seedRes;
 }

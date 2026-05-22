@@ -512,10 +512,6 @@ static SearchRange buildSearchRange(
 	{
 		throw std::runtime_error("range window cannot be wider than 16 hex chars");
 	}
-	if (lastDiff != 15)
-	{
-		throw std::runtime_error("current range mode requires the variable window to end at hex position 16");
-	}
 	const unsigned int lowFixedNibblesInHighWord = 15u - static_cast<unsigned int>(lastDiff);
 	if (lowFixedNibblesInHighWord > 31)
 	{
@@ -543,9 +539,9 @@ static SearchRange buildSearchRange(
 	const cl_ulong variableMask = makeNibbleMask(variableNibbles) << (lowFixedNibblesInHighWord * 4);
 	const cl_ulong counterLow = (range.start.s[3] & variableMask) >> (lowFixedNibblesInHighWord * 4);
 	const cl_ulong counterEnd = (range.end.s[3] & variableMask) >> (lowFixedNibblesInHighWord * 4);
+	const cl_ulong counterDistance = range.descending ? (counterLow - counterEnd) : (counterEnd - counterLow);
 	range.counterMask = makeNibbleMask(variableNibbles);
-	range.counterMax = range.descending ? (counterLow - counterEnd) : (counterEnd - counterLow);
-	++range.counterMax;
+	range.counterMax = counterDistance == (std::numeric_limits<cl_ulong>::max)() ? counterDistance : (counterDistance + 1);
 	range.prefixHigh = range.start.s[3] & ~variableMask;
 	range.counterStart = counterLow;
 	range.counterShift = lowFixedNibblesInHighWord * 4;
@@ -555,7 +551,14 @@ static SearchRange buildSearchRange(
 	std::cout << "  end = " << clUlong4ToHex(range.end) << std::endl;
 	std::cout << "  direction = " << (range.descending ? "down" : "up") << std::endl;
 	std::cout << "  variable hex = " << (range.hexFirst + 1) << "-" << (range.hexLast + 1) << std::endl;
-	std::cout << "  max steps = " << range.counterMax << std::endl;
+	if (counterDistance == (std::numeric_limits<cl_ulong>::max)())
+	{
+		std::cout << "  max steps = 18446744073709551616" << std::endl;
+	}
+	else
+	{
+		std::cout << "  max steps = " << range.counterMax << std::endl;
+	}
 	std::cout << "  note = range mode constrains the first 64-bit private-key lane" << std::endl;
 
 	return range;

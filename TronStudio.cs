@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -64,6 +65,9 @@ namespace ProfanityTronStudio
         private readonly NumericUpDown prefixBox;
         private readonly NumericUpDown suffixBox;
         private readonly NumericUpDown countBox;
+        private readonly TextBox rangeStartBox;
+        private readonly TextBox rangeEndBox;
+        private readonly ComboBox rangeDirectionBox;
         private readonly Label statusValue;
         private readonly Label pidValue;
         private readonly Label hitCountValue;
@@ -122,6 +126,15 @@ namespace ProfanityTronStudio
             suffixBox = AddNumberBox(topPanel, 168, 70, 58, 0, 12, 5);
             AddLabel(topPanel, UiText.T("6570 91CF"), 240, 74, 36);
             countBox = AddNumberBox(topPanel, 278, 70, 70, 1, 1000000, 999);
+
+            AddLabel(topPanel, "变化位", 370, 74, 48);
+            rangeStartBox = AddTextBox(topPanel, 418, 70, 44, string.Empty);
+            AddLabel(topPanel, "-", 466, 74, 12);
+            rangeEndBox = AddTextBox(topPanel, 482, 70, 44, string.Empty);
+            rangeDirectionBox = new ComboBox { Location = new Point(536, 70), Size = new Size(74, 24), DropDownStyle = ComboBoxStyle.DropDownList, Font = UiFont(9f) };
+            rangeDirectionBox.Items.AddRange(new object[] { "向上", "向下" });
+            rangeDirectionBox.SelectedIndex = 0;
+            topPanel.Controls.Add(rangeDirectionBox);
 
             AddLabel(topPanel, UiText.T("8F93 51FA 6587 4EF6"), 22, 106, 58);
             outputBox = AddTextBox(topPanel, 82, 102, 330, defaultOutputPath);
@@ -473,7 +486,106 @@ namespace ProfanityTronStudio
                 "--quit-count", ((int)countBox.Value).ToString(),
                 "--output", outputPath
             };
+
+            var range = BuildRangeArguments();
+            if (range != null)
+            {
+                args.Add("--range-start");
+                args.Add(range.Start);
+                args.Add("--range-end");
+                args.Add(range.End);
+                args.Add("--range-direction");
+                args.Add(range.Direction);
+                AddLog("变化位: 输入 " + range.DisplayStart + "-" + range.DisplayEnd + "，实际控制 " + range.ActualStart + "-" + range.ActualEnd + "，底层槽 " + range.SlotStart + "-" + range.SlotEnd + "，方向: " + (range.Direction == "down" ? "向下" : "向上"));
+                AddLog("变化位基准私钥: " + range.BaseKey);
+            }
+
             return string.Join(" ", args.Select(QuoteArgument));
+        }
+
+        private RangeArguments BuildRangeArguments()
+        {
+            var startText = rangeStartBox.Text.Trim();
+            var endText = rangeEndBox.Text.Trim();
+            if (startText.Length == 0 && endText.Length == 0)
+            {
+                return null;
+            }
+            if (startText.Length == 0 || endText.Length == 0)
+            {
+                throw new InvalidOperationException("变化位起始和结束要同时填写，或同时留空。");
+            }
+
+            int displayStart;
+            int displayEnd;
+            if (!int.TryParse(startText, out displayStart) || !int.TryParse(endText, out displayEnd))
+            {
+                throw new InvalidOperationException("变化位必须是 1-64 的整数。");
+            }
+            if (displayStart < 1 || displayStart > 64 || displayEnd < 1 || displayEnd > 64)
+            {
+                throw new InvalidOperationException("变化位范围必须在 1-64 之间。");
+            }
+            if (displayStart > displayEnd)
+            {
+                throw new InvalidOperationException("变化位起始不能大于结束。");
+            }
+
+            var slotStart = ToRangeSlot(displayStart);
+            var slotEnd = ToRangeSlot(displayEnd);
+            var actualStart = (slotStart - 1) * 4 + 1;
+            var actualEnd = slotEnd * 4;
+
+            var direction = rangeDirectionBox.SelectedIndex == 1 ? "down" : "up";
+            var baseKey = MakeRandomPrivateKeyHex();
+            var start = MakeRangePrivateKey(baseKey, slotStart, slotEnd, direction == "down", true);
+            var end = MakeRangePrivateKey(baseKey, slotStart, slotEnd, direction == "down", false);
+            return new RangeArguments
+            {
+                Start = start,
+                End = end,
+                Direction = direction,
+                DisplayStart = displayStart,
+                DisplayEnd = displayEnd,
+                SlotStart = slotStart,
+                SlotEnd = slotEnd,
+                ActualStart = actualStart,
+                ActualEnd = actualEnd,
+                BaseKey = baseKey
+            };
+        }
+
+        private static int ToRangeSlot(int displayPosition)
+        {
+            return Math.Max(1, Math.Min(16, (displayPosition + 3) / 4));
+        }
+
+        private static string MakeRangePrivateKey(string baseKey, int slotStart, int slotEnd, bool descending, bool isStart)
+        {
+            var chars = baseKey.ToCharArray();
+            var first = slotStart - 1;
+            var last = slotEnd - 1;
+            for (var i = first; i <= last; ++i)
+            {
+                chars[i] = (descending ? isStart : !isStart) ? 'f' : '0';
+            }
+            return new string(chars);
+        }
+
+        private static string MakeRandomPrivateKeyHex()
+        {
+            var bytes = new byte[32];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(bytes);
+            }
+
+            var sb = new StringBuilder(64);
+            foreach (var b in bytes)
+            {
+                sb.Append(b.ToString("x2"));
+            }
+            return sb.ToString();
         }
 
         private string CreateRunOutputPath()
@@ -938,6 +1050,20 @@ namespace ProfanityTronStudio
             public string Suffix;
             public string Address;
             public string PrivateKey;
+        }
+
+        private sealed class RangeArguments
+        {
+            public string Start;
+            public string End;
+            public string Direction;
+            public int DisplayStart;
+            public int DisplayEnd;
+            public int SlotStart;
+            public int SlotEnd;
+            public int ActualStart;
+            public int ActualEnd;
+            public string BaseKey;
         }
 
         private static class NativeMethods

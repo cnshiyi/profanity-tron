@@ -327,7 +327,7 @@ void profanity_init_seed(__global const point * const precomp, point * const p, 
 	}
 }
 
-__kernel void profanity_init(__global const point * const precomp, __global mp_number * const pDeltaX, __global mp_number * const pPrevLambda, __global result * const pResult, const ulong4 seed, const uchar descending) {
+__kernel void profanity_init(__global const point * const precomp, __global mp_number * const pDeltaX, __global mp_number * const pPrevLambda, __global result * const pResult, const ulong4 seed, const uchar descending, const uchar rangeShift) {
 	const size_t id = get_global_id(0);
 	point p;
 	bool bIsFirst = true;
@@ -338,7 +338,8 @@ __kernel void profanity_init(__global const point * const precomp, __global mp_n
 	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 0, seed.x);
 	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 1, seed.y);
 	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 2, seed.z);
-	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 3, descending ? seed.w - id : seed.w + id);
+	const ulong rangeOffset = ((ulong)id) << rangeShift;
+	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 3, descending ? seed.w - rangeOffset : seed.w + rangeOffset);
 
 	mp_mod_sub_gx(&tmp1, &p.x);
 	mp_mod_inverse(&tmp1);
