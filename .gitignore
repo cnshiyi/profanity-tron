@@ -1,8 +1,36 @@
 # Makefile artifacts
 *.o
 *.so
+*.pdb
 .DS_store
 cache-opencl.*
 bin
 profanity.x64
 README_dev.md
+result.txt
+build/
+
+# Downloaded/recovered scratch files
+*.zip
+_release_v1.0.3_source/
+_bisect_*.cs
+launcher/obsolete/
+
+# Runtime output and generated caches
+dist/*.exe
+dist/*.obj
+dist/*.pdb
+dist/*.ilk
+dist/*.lib
+dist/*.exp
+dist/*.zip
+dist/cache-opencl.*
+dist/runtime/runs/
+dist/runtime/hits_all.txt
+dist/result.txt
+
+# Temporary launcher backups/tests
+dist/*backup*.exe
+dist/*blocked_candidate*.exe
+dist/start_from_clean_v103.exe
+dist/727f7dd0-*_start.exe
