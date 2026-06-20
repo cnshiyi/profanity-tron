@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.7 - 2026-06-21
+
+- 中文：修复目标地址保存时首行可能带 UTF-8 BOM 的问题，确保目标地址一行一个且没有隐藏前缀字符。
+- English: Fixed target saving so the first line does not get a UTF-8 BOM, keeping targets one per line with no hidden prefix character.
+- 中文：生成器读取目标文件时会清理 BOM 和首尾空白，提高旧文件兼容性。
+- English: The generator now strips BOM and surrounding whitespace when reading target files for compatibility with older saved files.
+- 中文：发布包 README 改为从 UTF-8 模板复制，避免 Windows PowerShell 5.1 读取脚本源码时把中文生成成乱码。
+- English: The packaged README is copied from a UTF-8 template to avoid garbled Chinese when Windows PowerShell 5.1 reads the build script.
+
 ## v1.0.6 - 2026-06-21
 
 - 中文：将根目录 README、发布包 README、发布说明和版本记录改为中英双语。

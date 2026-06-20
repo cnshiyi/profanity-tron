@@ -42,7 +42,7 @@ English:
 在仓库根目录执行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.6
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.7
 ```
 
 English:
@@ -50,12 +50,12 @@ English:
 From the repository root:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.6
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.7
 ```
 
-生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.6.zip`。
+生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.7.zip`。
 
-Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.6.zip`.
+Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.7.zip`.
 
 ## 验证 / Verification
 

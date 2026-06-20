@@ -44,6 +44,8 @@ namespace ProfanityTronStudio
 
     internal sealed class MainForm : Form
     {
+        private static readonly Encoding Utf8NoBom = new UTF8Encoding(false);
+
         private readonly string rootDir;
         private readonly string exePath;
         private readonly string runtimeDir;
@@ -238,6 +240,7 @@ namespace ProfanityTronStudio
         {
             return new Font("Microsoft YaHei UI", size, style);
         }
+
         private static Button AddButton(Control parent, string text, int x, int y, int width) { var button = new Button { Text = text, Location = new Point(x, y), Size = new Size(width, 38), Font = UiFont(10f, FontStyle.Bold), UseVisualStyleBackColor = true }; parent.Controls.Add(button); return button; }
         private static Label AddLabel(Control parent, string text, int x, int y, int width) { var label = new Label { Text = text, Location = new Point(x, y), Size = new Size(width, 22), Font = UiFont(9f) }; parent.Controls.Add(label); return label; }
         private static Label AddValueLabel(Control parent, string text, int x, int y, int width) { var label = AddLabel(parent, text, x, y, width); label.Font = UiFont(9f, FontStyle.Bold); return label; }
@@ -260,7 +263,7 @@ namespace ProfanityTronStudio
         {
             if (File.Exists(defaultTargetsPath))
             {
-                var text = File.ReadAllText(defaultTargetsPath, Encoding.UTF8).Trim();
+                var text = NormalizeTargetText(File.ReadAllText(defaultTargetsPath, Encoding.UTF8));
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     return text;
@@ -292,13 +295,16 @@ namespace ProfanityTronStudio
             }
 
             Directory.CreateDirectory(runtimeDir);
-            File.WriteAllLines(defaultTargetsPath, targets, Encoding.UTF8);
+            WriteTargetLines(defaultTargetsPath, targets);
             AddLog(UiText.T("76EE 6807 5730 5740 5DF2 4FDD 5B58 3002"));
         }
 
         private List<string> GetTargets()
         {
-            return targetEditor.Lines.Select(line => line.Trim()).Where(line => line.Length > 0).ToList();
+            return targetEditor.Lines
+                .Select(NormalizeTargetLine)
+                .Where(line => line.Length > 0)
+                .ToList();
         }
 
         private string GetMatchingArgument()
@@ -307,8 +313,28 @@ namespace ProfanityTronStudio
             if (targets.Count == 0) return string.Empty;
             if (targets.Count == 1) return targets[0];
             Directory.CreateDirectory(runtimeDir);
-            File.WriteAllLines(defaultTargetsPath, targets, Encoding.UTF8);
+            WriteTargetLines(defaultTargetsPath, targets);
             return defaultTargetsPath;
+        }
+
+        private static string NormalizeTargetText(string text)
+        {
+            var normalized = (text ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n');
+            var lines = normalized.Split(new[] { '\n' }, StringSplitOptions.None)
+                .Select(NormalizeTargetLine)
+                .Where(line => line.Length > 0);
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        private static string NormalizeTargetLine(string line)
+        {
+            return (line ?? string.Empty).Trim().TrimStart('\uFEFF');
+        }
+
+        private static void WriteTargetLines(string path, IEnumerable<string> targets)
+        {
+            var text = string.Join(Environment.NewLine, targets.Select(NormalizeTargetLine).Where(line => line.Length > 0));
+            File.WriteAllText(path, text + Environment.NewLine, Utf8NoBom);
         }
 
         private void AddLog(string text, bool isError = false)

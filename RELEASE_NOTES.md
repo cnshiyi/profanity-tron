@@ -1,4 +1,4 @@
-# v1.0.6
+# v1.0.7
 
 ## 中文
 
@@ -6,7 +6,7 @@
 
 - Windows 图形启动器：`start.exe`
 - 原生 OpenCL 生成器：`shiyi.exe`
-- 发布资产文件：`shiyi-v1.0.6.zip`
+- 发布资产文件：`shiyi-v1.0.7.zip`
 - 运行时 OpenCL 内核：`kernels/*.cl`
 - 默认目标文件：`profanity.txt` 和 `runtime/targets.txt`
 - 启动辅助脚本：`start.bat`
@@ -15,7 +15,10 @@
 ### 本次更新
 
 - 文档改为中英双语，包括根目录 README、发布包 README、发布说明和版本记录。
-- GitHub Release 资产文件名改为带版本号的 `shiyi-v1.0.6.zip`。
+- GitHub Release 资产文件名改为带版本号的 `shiyi-v1.0.7.zip`。
+- 修复目标地址文件首行可能带 BOM 的问题，确保目标地址一行一个且无隐藏前缀字符。
+- 生成器读取目标文件时会清理 BOM 和首尾空白，兼容旧保存文件。
+- 发布包 README 从 UTF-8 模板复制，避免 PowerShell 5.1 构建时中文乱码。
 - 保留 v1.0.5 的范围模式恢复、`shiyi.exe` 命名修复、内核源码打包和 Smart App Control 误拦截修复。
 - 启动器已连接初始私钥、方向、位数到原生范围模式；指定位数限制为 1-16 个十六进制位。
 - 本地 benchmark 工具会串行运行并清理同目录残留进程。
@@ -42,7 +45,7 @@
 
 - Windows launcher: `start.exe`
 - Native OpenCL generator: `shiyi.exe`
-- Release asset file: `shiyi-v1.0.6.zip`
+- Release asset file: `shiyi-v1.0.7.zip`
 - Runtime OpenCL kernels: `kernels/*.cl`
 - Default target files: `profanity.txt` and `runtime/targets.txt`
 - Launcher helper: `start.bat`
@@ -51,7 +54,10 @@
 ### Changes
 
 - Documentation is now bilingual Chinese/English, including the root README, package README, release notes, and version record.
-- The GitHub Release asset filename now includes the version: `shiyi-v1.0.6.zip`.
+- The GitHub Release asset filename now includes the version: `shiyi-v1.0.7.zip`.
+- Fixed target files that could save a BOM on the first line, keeping targets one per line with no hidden prefix character.
+- The generator now strips BOM and surrounding whitespace when reading target files for compatibility with older saved files.
+- The packaged README is copied from a UTF-8 template to avoid garbled Chinese when built with Windows PowerShell 5.1.
 - Keeps the v1.0.5 range-mode restore, `shiyi.exe` package naming fix, packaged kernel sources, and Smart App Control false-positive fix.
 - Launcher fields for initial private key, direction, and digit count are wired to native range mode. Fixed-digit mode is limited to 1-16 hex digits.
 - The local benchmark helper runs serially and cleans same-folder residual generator processes.

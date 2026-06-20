@@ -6,6 +6,8 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include <algorithm>
+#include <cctype>
 
 Mode::Mode() : score(0), prefixCount(0), suffixCount(0), matchingCount(0) {
 
@@ -17,9 +19,27 @@ static std::string::size_type hexValueNoException(char c) {
 	return ret;
 }
 
+static std::string trimTargetLine(std::string line) {
+	if (line.size() >= 3 &&
+		static_cast<unsigned char>(line[0]) == 0xEF &&
+		static_cast<unsigned char>(line[1]) == 0xBB &&
+		static_cast<unsigned char>(line[2]) == 0xBF) {
+		line.erase(0, 3);
+	}
+	line.erase(line.begin(), std::find_if(line.begin(), line.end(), [](unsigned char ch) {
+		return !std::isspace(ch);
+	}));
+	line.erase(std::find_if(line.rbegin(), line.rend(), [](unsigned char ch) {
+		return !std::isspace(ch);
+	}).base(), line.end());
+	return line;
+}
+
 Mode Mode::matching(std::string matchingInput) {
 	Mode r;
 	std::vector<std::string> matchingList;
+
+	matchingInput = trimTargetLine(matchingInput);
 
 	if(matchingInput.size() == 34 && matchingInput[0] == 'T') {
 		std::stringstream ss;
@@ -33,6 +53,7 @@ Mode Mode::matching(std::string matchingInput) {
 		if (file.is_open()) {
 			std::string line;
 			while (std::getline(file, line)) {
+				line = trimTargetLine(line);
 				std::stringstream ss;
 				if(line.size() == 20 || line.size() == 34) {
 					if(line.size() == 34) {
