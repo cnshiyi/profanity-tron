@@ -1,4 +1,4 @@
-# v1.0.7
+# v1.0.8
 
 ## 中文
 
@@ -6,7 +6,7 @@
 
 - Windows 图形启动器：`start.exe`
 - 原生 OpenCL 生成器：`shiyi.exe`
-- 发布资产文件：`shiyi-v1.0.7.zip`
+- 发布资产文件：`shiyi-v1.0.8.zip`
 - 运行时 OpenCL 内核：`kernels/*.cl`
 - 默认目标文件：`profanity.txt` 和 `runtime/targets.txt`
 - 启动辅助脚本：`start.bat`
@@ -14,30 +14,23 @@
 
 ### 本次更新
 
-- 文档改为中英双语，包括根目录 README、发布包 README、发布说明和版本记录。
-- GitHub Release 资产文件名改为带版本号的 `shiyi-v1.0.7.zip`。
-- 修复目标地址文件首行可能带 BOM 的问题，确保目标地址一行一个且无隐藏前缀字符。
-- 生成器读取目标文件时会清理 BOM 和首尾空白，兼容旧保存文件。
-- 发布包 README 从 UTF-8 模板复制，避免 PowerShell 5.1 构建时中文乱码。
-- 保留 v1.0.5 的范围模式恢复、`shiyi.exe` 命名修复、内核源码打包和 Smart App Control 误拦截修复。
-- 启动器已连接初始私钥、方向、位数到原生范围模式；指定位数限制为 1-16 个十六进制位。
-- 本地 benchmark 工具会串行运行并清理同目录残留进程。
+- 默认目标地址修正为 0 到 9 各一行，移除误写入的 `[银行卡]` 占位文本。
+- 启动器读取旧 `runtime/targets.txt` 时，如果检测到 `[银行卡]` 旧内容，会自动回退到新的默认目标，避免旧运行目录把错误内容带回来。
+- 继续保留 v1.0.7 的目标文件 UTF-8 无 BOM 保存、BOM/空白清理、发布包 README UTF-8 模板复制。
+- 继续保留 v1.0.5 的范围模式恢复、`shiyi.exe` 命名、内核源码打包、Smart App Control 误拦截修复。
+- 本版本不发布未验证的性能参数调整；随机/default 模式 400 MH/s 目标继续迭代。
 
 ### 验证
 
 - 已从源码干净构建 Windows 发布包。
-- `shiyi.exe --help` 可运行，没有触发 Windows Application Control 拦截。
-- 发布 zip 包含 `kernels/` 和 `runtime/` 目录。
-- 启动器烟测：可启动并关闭。
-- 进程残留检查：运行后没有残留 `shiyi`、旧 `profanity*`、`TronStudio` 或 `start` 进程。
-- RTX 3070 当前基线：
-  - 随机单目标：383.894 MH/s
-  - 默认多目标：382.824 MH/s
-  - 指定初始私钥范围：419.475 MH/s
+- `profanity.txt`、`dist/profanity.txt`、`dist/runtime/targets.txt` 均为 10 行 0-9 默认目标。
+- 三份目标文件内容完全一致，首字节均为 `54 54 54`，无 UTF-8 BOM。
+- 发布 zip 内的 `profanity.txt` 和 `runtime/targets.txt` 均为 0-9 十行目标。
+- 构建后未发现残留 `shiyi`、旧 `profanity*`、`TronStudio` 或 `start` 进程。
 
 ### 已知状态
 
-400 MH/s 目标在指定初始私钥范围测试中已达到，但随机/默认模式仍低于目标，需要继续优化。
+400 MH/s 目标在指定初始私钥范围测试中已达到，但随机/default 模式仍低于目标，需要继续优化。
 
 ## English
 
@@ -45,7 +38,7 @@
 
 - Windows launcher: `start.exe`
 - Native OpenCL generator: `shiyi.exe`
-- Release asset file: `shiyi-v1.0.7.zip`
+- Release asset file: `shiyi-v1.0.8.zip`
 - Runtime OpenCL kernels: `kernels/*.cl`
 - Default target files: `profanity.txt` and `runtime/targets.txt`
 - Launcher helper: `start.bat`
@@ -53,26 +46,19 @@
 
 ### Changes
 
-- Documentation is now bilingual Chinese/English, including the root README, package README, release notes, and version record.
-- The GitHub Release asset filename now includes the version: `shiyi-v1.0.7.zip`.
-- Fixed target files that could save a BOM on the first line, keeping targets one per line with no hidden prefix character.
-- The generator now strips BOM and surrounding whitespace when reading target files for compatibility with older saved files.
-- The packaged README is copied from a UTF-8 template to avoid garbled Chinese when built with Windows PowerShell 5.1.
-- Keeps the v1.0.5 range-mode restore, `shiyi.exe` package naming fix, packaged kernel sources, and Smart App Control false-positive fix.
-- Launcher fields for initial private key, direction, and digit count are wired to native range mode. Fixed-digit mode is limited to 1-16 hex digits.
-- The local benchmark helper runs serially and cleans same-folder residual generator processes.
+- Corrected the default target list to one line for each digit from 0 to 9, removing the accidental `[银行卡]` placeholder text.
+- When the launcher reads an old `runtime/targets.txt`, it falls back to the new defaults if legacy `[银行卡]` text is detected, preventing old runtime directories from bringing the bad targets back.
+- Keeps the v1.0.7 UTF-8 no-BOM target saving, BOM/whitespace cleanup, and UTF-8 package README template copy.
+- Keeps the v1.0.5 range-mode restore, `shiyi.exe` naming, packaged kernel sources, and Smart App Control false-positive fix.
+- This release does not ship the unverified performance parameter experiment; the 400 MH/s target for random/default modes remains active.
 
 ### Verification
 
 - Clean Windows build from source.
-- `shiyi.exe --help` runs without Windows Application Control blocking.
-- Release zip contains `kernels/` and `runtime/` directories.
-- Launcher smoke test: start and close.
-- Residual process check: no leftover `shiyi`, old `profanity*`, `TronStudio`, or `start` processes after runs.
-- Current measured baseline on RTX 3070:
-  - Random single-target: 383.894 MH/s
-  - Default multi-target: 382.824 MH/s
-  - Explicit initial-key range: 419.475 MH/s
+- `profanity.txt`, `dist/profanity.txt`, and `dist/runtime/targets.txt` all contain the 10-line 0-9 default target list.
+- All three target files match exactly, start with bytes `54 54 54`, and have no UTF-8 BOM.
+- The release zip contains the corrected 0-9 target list in both `profanity.txt` and `runtime/targets.txt`.
+- No leftover `shiyi`, old `profanity*`, `TronStudio`, or `start` processes were found after the build.
 
 ### Known Status
 

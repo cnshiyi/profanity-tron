@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.8 - 2026-06-21
+
+- 中文：修正默认目标地址列表，将误写入的 `[银行卡]` 占位文本恢复为 0 到 9 各一行的真实目标。
+- English: Corrected the default target list by replacing the accidental `[银行卡]` placeholder text with the real 0-9 target lines.
+- 中文：启动器读取旧 `runtime/targets.txt` 时，如果检测到 `[银行卡]` 旧内容，会自动回退到新的 0-9 默认目标。
+- English: The launcher now falls back to the corrected 0-9 defaults when an old `runtime/targets.txt` still contains `[银行卡]`.
+- 中文：本版本不发布未验证的性能参数调整；随机/default 模式 400 MH/s 目标继续迭代。
+- English: This release does not ship the unverified performance parameter experiment; the 400 MH/s target for random/default modes remains active.
+
 ## v1.0.7 - 2026-06-21
 
 - 中文：修复目标地址保存时首行可能带 UTF-8 BOM 的问题，确保目标地址一行一个且没有隐藏前缀字符。

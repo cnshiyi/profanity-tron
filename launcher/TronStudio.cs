@@ -264,25 +264,34 @@ namespace ProfanityTronStudio
             if (File.Exists(defaultTargetsPath))
             {
                 var text = NormalizeTargetText(File.ReadAllText(defaultTargetsPath, Encoding.UTF8));
-                if (!string.IsNullOrWhiteSpace(text))
+                if (!string.IsNullOrWhiteSpace(text) && !ContainsLegacyRedactedTarget(text))
                 {
                     return text;
                 }
             }
-            var bankCard = UiText.T("005B 94F6 884C 5361 005D");
+            return GetDefaultTargetText();
+        }
+
+        private static string GetDefaultTargetText()
+        {
             return string.Join(Environment.NewLine, new[]
             {
-                "TTTTTTTTTTTTTTTTT" + bankCard,
+                "TTTTTTTTTTTTTTTTT00000000000000000",
                 "TTTTTTTTTTTTTTTTT11111111111111111",
-                "TTTTTTTTTTTTTTTTT" + bankCard,
+                "TTTTTTTTTTTTTTTTT22222222222222222",
                 "TTTTTTTTTTTTTTTTT33333333333333333",
-                "TTTTTTTTTTTTTTTTT" + bankCard,
+                "TTTTTTTTTTTTTTTTT44444444444444444",
                 "TTTTTTTTTTTTTTTTT55555555555555555",
                 "TTTTTTTTTTTTTTTTT66666666666666666",
                 "TTTTTTTTTTTTTTTTT77777777777777777",
                 "TTTTTTTTTTTTTTTTT88888888888888888",
                 "TTTTTTTTTTTTTTTTT99999999999999999"
             });
+        }
+
+        private static bool ContainsLegacyRedactedTarget(string text)
+        {
+            return (text ?? string.Empty).IndexOf(UiText.T("005B 94F6 884C 5361 005D"), StringComparison.Ordinal) >= 0;
         }
 
         private void SaveTargets()
