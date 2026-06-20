@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.6 - 2026-06-21
+
+- 中文：将根目录 README、发布包 README、发布说明和版本记录改为中英双语。
+- English: Made the root README, package README, release notes, and version record bilingual Chinese/English.
+- 中文：重新构建 Windows 发布包，确认包内 README 也由构建脚本生成双语内容。
+- English: Rebuilt the Windows package and verified the package README is generated bilingually by the build script.
+- 中文：发布资产文件名改为 `shiyi-版本号.zip`，例如 `shiyi-v1.0.6.zip`。
+- English: Changed the release asset filename to `shiyi-version.zip`, for example `shiyi-v1.0.6.zip`.
+
 ## v1.0.5 - 2026-06-21
 
 - Restored the range-capable native backend and runtime OpenCL kernel sources.
