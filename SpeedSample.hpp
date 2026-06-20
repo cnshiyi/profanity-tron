@@ -13,6 +13,7 @@ class SpeedSample {
 
 		double getSpeed() const;
 		void sample(const double V);
+		void reset();
 
 	private:
 		static timepoint now();

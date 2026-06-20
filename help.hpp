@@ -7,44 +7,44 @@ const std::string g_strHelp = R"(
 Usage: ./profanity [OPTIONS]
 
   Help:
-    --help              Show help information
+    --help                 Show help information
 
-  Modes with arguments:
-    --matching          Matching input, file or single address.
+  Modes:
+    --matching             Matching input, file path or single Tron address
 
-  Matching configuration:
-    --prefix-count      Minimum number of prefix matches, default 0
-    --suffix-count      Minimum number of suffix matches, default 6
-    --quit-count        Exit the program when the generated number is greater than, default 0
+  Matching:
+    --prefix-count         Minimum prefix match length, default 0
+    --suffix-count         Minimum suffix match length, default 6
+    --quit-count           Exit after this many accepted hits, default 0
+    --benchmark-seconds    Run a fixed-duration benchmark instead of waiting for hits
+    --output               Append validated hits to a result file
 
-  Device control:
-    --skip              Skip GPU device given by index
+  Private-key range:
+    --range-start          Start private key, up to 64 hex chars
+    --range-end            End private key, up to 64 hex chars
+    --range-direction      up or down, default up
 
-  Output control:
-    --output            The file to output the results to
-    --post              The url to post the results to
+    Current range mode controls one continuous window in the first 16 private-key
+    hex chars. The window must end at hex position 16. Leave range arguments empty
+    for secure random mode.
+
+  Device:
+    --skip                 Skip GPU device by index
+    --cpu-assist           Optional low-rate OpenCL CPU assist, default off
+    --cpu-assist-inverse-multiple
+                           CPU assist batch size, default 128
+    --no-cache             Disable OpenCL program binary cache
 
 Examples:
 
   ./profanity --matching profanity.txt
-  ./profanity --matching profanity.txt --skip 1
   ./profanity --matching profanity.txt --suffix-count 6
-  ./profanity --matching profanity.txt --prefix-count 2 --suffix-count 6 --quit-count 1
-  ./profanity --matching profanity.txt --suffix-count 6 --output result.txt
-  ./profanity --matching profanity.txt --suffix-count 6 --post http://127.0.0.1:7002/api
-  ./profanity --matching TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D --prefix-count 2 --suffix-count 4 --quit-count 1
+  ./profanity --matching TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D --prefix-count 1 --suffix-count 1 --benchmark-seconds 10
+  ./profanity --matching TUqEg3dzVEJNQSVW2HY98z5X8SBdhmao8D --prefix-count 0 --suffix-count 1 --quit-count 3 --range-start 58958afa84300000e8ce89f9a5b808e8ee611ad00deaf3745a5305e0a3e1d688 --range-end 58958afa844fffffe8ce89f9a5b808e8ee611ad00deaf3745a5305e0a3e1d688 --range-direction up --output hits.txt
 
-About:
+Notes:
 
-  Profanity is a vanity address generator for tron: https://tron.network/
-  This software is modified based on ethereum profanity: https://github.com/johguse/profanity
-  Please make sure the program you are running is download from: https://github.com/GG4mida/profanity-tron
-  Author: telegram -> @jackslowfak
-
-Fbi Warning:
-
-  Before using a generated vanigity address, always verify that it matches the printed private key.
-  And always multi-sign the address to ensure account security.
+  Always independently verify that a generated address matches the printed private key.
 )";
 
 #endif /* HPP_HELP */

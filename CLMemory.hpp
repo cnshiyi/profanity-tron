@@ -16,6 +16,9 @@ template<typename T> class CLMemory {
 		}
 
 		~CLMemory() {
+			if (m_clMem != NULL) {
+				clReleaseMemObject(m_clMem);
+			}
 			if(m_bFree) {
 				delete [] m_pData;
 			}

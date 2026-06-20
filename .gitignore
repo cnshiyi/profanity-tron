@@ -24,10 +24,12 @@ dist/*.ilk
 dist/*.lib
 dist/*.exp
 dist/*.zip
+dist/kernels/
 dist/cache-opencl.*
 dist/runtime/runs/
 dist/runtime/hits_all.txt
 dist/result.txt
+experiments/tmp/
 
 # Temporary launcher backups/tests
 dist/*backup*.exe

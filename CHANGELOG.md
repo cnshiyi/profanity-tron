@@ -1,17 +1,30 @@
 # Version Record
 
+## v1.0.5 - 2026-06-21
+
+- Restored the range-capable native backend and runtime OpenCL kernel sources.
+- Packaged `kernels/*.cl` with the Windows release so the generator works after moving to another computer.
+- Wired launcher initial private key, direction, and digit count fields into native range mode.
+- Added a 1-16 hex digit limit and UI guidance for fixed-digit mode.
+- Added `scripts/benchmark-local.ps1` for serial benchmark runs with residual process cleanup.
+- Fixed fixed-digit benchmark reporting by resetting speed sampling after initialization.
+- Reduced range-mode batch size for small windows to avoid initializing unused GPU work.
+- Restored the Windows generator package name to `shiyi.exe`; legacy generator names are treated only as cleanup compatibility names.
+- Removed obsolete static curl/network linking from the native generator build; this fixed the Smart App Control block seen on the newly built executable.
+- Benchmarked current baseline on RTX 3070: random single-target 383.894 MH/s, default multi-target 382.824 MH/s, explicit initial-key range 419.475 MH/s. The 400 MH/s target remains open for random/default modes.
+
 ## v1.0.4 - 2026-06-21
 
 - Reworked the Windows release flow so GitHub publishes only from `v*` tags.
 - Replaced the fixed release tag with the pushed tag name and the built-in `GITHUB_TOKEN`.
 - Added `scripts/build-windows.ps1` so local builds and GitHub release builds use the same steps.
-- Clean builds now recreate `dist` with `start.exe`, `profanity.x64.exe`, default targets, version file, and a release zip.
+- Clean builds now recreate `dist` with `start.exe`, the native generator, default targets, version file, and a release zip.
 - Updated the source fallback target list and root `profanity.txt` to the confirmed default target set.
 - Kept generated binaries, object files, zips, and runtime hit logs out of git.
 
 ## 2026-06-21 - Windows launcher rebuild
 
-- Built `dist/profanity.exe` for Windows x64 with MSVC.
+- Built the Windows x64 native generator with MSVC.
 - Recreated the graphical launcher as `dist/start.exe`.
 - Restored the launcher layout: toolbar actions, prefix/suffix/count inputs, output path, status/PID/hit count, target editor, result grid, and output log.
 - Restored the target editor area with title, editable target list, and bottom hint text.
@@ -24,7 +37,7 @@
 Current files:
 
 - Launcher: `dist/start.exe`
-- Generator: `dist/profanity.exe`
+- Generator: legacy native executable
 - Default targets: `dist/profanity.txt`
 - Launcher source: `launcher/StartLauncher.cs`
 

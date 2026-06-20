@@ -7,6 +7,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 using System.Windows.Forms;
 
 namespace ProfanityTronStudio
@@ -90,7 +91,7 @@ namespace ProfanityTronStudio
         public MainForm()
         {
             rootDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            exePath = Path.Combine(rootDir, "profanity.x64.exe");
+            exePath = Path.Combine(rootDir, "shiyi.exe");
             runtimeDir = Path.Combine(rootDir, "runtime");
             runOutputDir = Path.Combine(runtimeDir, "runs");
             defaultOutputPath = Path.Combine(runtimeDir, "hits_all.txt");
@@ -142,6 +143,7 @@ namespace ProfanityTronStudio
             topPanel.Controls.Add(optDirBox);
             AddLabel(topPanel, UiText.T("968F 673A 4F4D 6570"), 1170, 74, 62);
             optDigitsBox = AddTextBox(topPanel, 1232, 70, 58, string.Empty);
+            optDigitsBox.MaxLength = 2;
 
             AddLabel(topPanel, UiText.T("8F93 51FA 6587 4EF6"), 22, 106, 58);
             outputBox = AddTextBox(topPanel, 82, 102, 330, defaultOutputPath);
@@ -153,6 +155,15 @@ namespace ProfanityTronStudio
             AddLabel(topPanel, UiText.T("547D 4E2D"), 770, 106, 40);
             hitCountValue = AddValueLabel(topPanel, "0", 813, 106, 80);
             hitCountValue.ForeColor = Color.Blue;
+            var rangeHint = new Label
+            {
+                Text = UiText.T("6307 5B9A 4F4D 6570 4EC5 652F 6301 0020 0031 002D 0031 0036 0020 4F4D 5341 516D 8FDB 5236 7A97 53E3 FF1B 7559 7A7A 4E3A 666E 901A 968F 673A 6A21 5F0F 3002"),
+                Location = new Point(910, 106),
+                Size = new Size(455, 22),
+                Font = UiFont(9f),
+                ForeColor = Color.FromArgb(80, 80, 80)
+            };
+            topPanel.Controls.Add(rangeHint);
             brandLabel = new Label
             {
                 Text = "@shiyi",
@@ -406,10 +417,20 @@ namespace ProfanityTronStudio
             resultGrid.Rows.Clear();
             logBox.Clear();
 
-            var arguments = BuildArguments(matching, lastOutputPath);
+            string arguments;
+            try
+            {
+                arguments = BuildArguments(matching, lastOutputPath);
+            }
+            catch (Exception error)
+            {
+                AddLog(error.Message, true);
+                SetRunningState(false);
+                return;
+            }
             AddLog(UiText.T("542F 52A8 547D 4EE4 3A 20") + "\"" + exePath + "\" " + arguments);
-            AddLog("本次临时文件: " + lastOutputPath);
-            AddLog("长期保存文件: " + permanentOutputPath);
+            AddLog(UiText.T("672C 6B21 4E34 65F6 6587 4EF6 003A 0020") + lastOutputPath);
+            AddLog(UiText.T("957F 671F 4FDD 5B58 6587 4EF6 003A 0020") + permanentOutputPath);
 
             var startInfo = new ProcessStartInfo
             {
@@ -493,7 +514,114 @@ namespace ProfanityTronStudio
                 "--quit-count", ((int)countBox.Value).ToString(),
                 "--output", outputPath
             };
+
+            AppendRangeArguments(args);
             return string.Join(" ", args.Select(QuoteArgument));
+        }
+
+        private void AppendRangeArguments(List<string> args)
+        {
+            var digitsText = optDigitsBox.Text.Trim();
+            var keyText = optKeyBox.Text.Trim();
+            var directionText = Convert.ToString(optDirBox.SelectedItem ?? string.Empty).Trim();
+            var hasDigits = digitsText.Length > 0;
+            var hasKey = keyText.Length > 0;
+            var hasDirection = directionText.Length > 0;
+
+            if (!hasDigits && !hasKey && !hasDirection)
+            {
+                return;
+            }
+
+            if (!hasDigits)
+            {
+                AddLog(UiText.T("586B 5199 4F4D 6570 540E FF0C 521D 59CB 79C1 94A5 4E3A 7A7A 65F6 4F1A 81EA 52A8 968F 673A 751F 6210 3002"));
+                digitsText = "8";
+            }
+
+            int digits;
+            if (!int.TryParse(digitsText, out digits) || digits < 1 || digits > 16)
+            {
+                throw new InvalidOperationException(UiText.T("6307 5B9A 4F4D 6570 5FC5 987B 662F 0020 0031 0020 5230 0020 0031 0036 3002"));
+            }
+
+            var startKey = NormalizePrivateKey(keyText.Length == 0 ? CreateRandomPrivateKey() : keyText);
+            var upText = UiText.T("5411 4E0A");
+            var downText = UiText.T("5411 4E0B");
+            bool directionUp;
+            if (directionText.Length == 0)
+            {
+                directionUp = CreateRandomBit();
+                AddLog(UiText.T("65B9 5411 4E3A 7A7A FF0C 5DF2 968F 673A 9009 62E9 FF1A") + (directionUp ? upText : downText));
+            }
+            else
+            {
+                directionUp = string.Equals(directionText, upText, StringComparison.Ordinal);
+            }
+
+            var endKey = BuildRangeEnd(startKey, digits, directionUp);
+            args.Add("--range-start");
+            args.Add(startKey);
+            args.Add("--range-end");
+            args.Add(endKey);
+            args.Add("--range-direction");
+            args.Add(directionUp ? "up" : "down");
+        }
+
+        private static string NormalizePrivateKey(string value)
+        {
+            var text = Regex.Replace(value ?? string.Empty, "\\s+", string.Empty);
+            if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            {
+                text = text.Substring(2);
+            }
+            if (text.Length == 0 || text.Length > 64 || !Regex.IsMatch(text, "^[0-9a-fA-F]+$"))
+            {
+                throw new InvalidOperationException(UiText.T("521D 59CB 79C1 94A5 5FC5 987B 662F 0020 0036 0034 0020 4F4D 4EE5 5185 5341 516D 8FDB 5236 3002"));
+            }
+            return text.PadLeft(64, '0').ToLowerInvariant();
+        }
+
+        private static string CreateRandomPrivateKey()
+        {
+            var bytes = new byte[32];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(bytes);
+            }
+            var sb = new StringBuilder(64);
+            foreach (var b in bytes)
+            {
+                sb.Append(b.ToString("x2"));
+            }
+            return sb.ToString();
+        }
+
+        private static bool CreateRandomBit()
+        {
+            var bytes = new byte[1];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(bytes);
+            }
+            return (bytes[0] & 1) == 0;
+        }
+
+        private static string BuildRangeEnd(string startKey, int digits, bool directionUp)
+        {
+            var chars = startKey.ToCharArray();
+            var first = 16 - digits;
+            ulong value = Convert.ToUInt64(startKey.Substring(first, digits), 16);
+            ulong limit = digits == 16 ? ulong.MaxValue : ((1UL << (digits * 4)) - 1UL);
+            ulong endValue = directionUp ? limit : 0UL;
+            if (directionUp && value == limit) endValue = value;
+            if (!directionUp && value == 0UL) endValue = value;
+            var replacement = endValue.ToString("x").PadLeft(digits, '0');
+            for (var i = 0; i < digits; i++)
+            {
+                chars[first + i] = replacement[i];
+            }
+            return new string(chars);
         }
 
         private string CreateRunOutputPath()
@@ -659,7 +787,7 @@ namespace ProfanityTronStudio
             }
             catch (IOException error)
             {
-                AddLog("读取结果文件失败：" + error.Message, true);
+                AddLog(UiText.T("8BFB 53D6 7ED3 679C 6587 4EF6 5931 8D25 FF1A") + error.Message, true);
                 return;
             }
 
@@ -734,7 +862,7 @@ namespace ProfanityTronStudio
                 }
             }
 
-            AddLog("写入总结果文件失败，文件可能正被占用：" + path, true);
+            AddLog(UiText.T("5199 5165 603B 7ED3 679C 6587 4EF6 5931 8D25 FF0C 6587 4EF6 53EF 80FD 6B63 88AB 5360 7528 FF1A") + path, true);
         }
 
         private static IEnumerable<string> ReadAllLinesShared(string path)
@@ -971,8 +1099,11 @@ namespace ProfanityTronStudio
 
                         var normalizedFileName = Path.GetFullPath(fileName);
                         var isThisGenerator = string.Equals(normalizedFileName, normalizedExePath, StringComparison.OrdinalIgnoreCase);
+                        var projectFileName = Path.GetFileName(normalizedFileName);
+                        var isLegacyGenerator = projectFileName.StartsWith("profanity", StringComparison.OrdinalIgnoreCase) &&
+                            projectFileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
                         var isProjectGenerator = normalizedFileName.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(Path.GetFileName(normalizedFileName), "profanity.x64.exe", StringComparison.OrdinalIgnoreCase);
+                            (string.Equals(projectFileName, "shiyi.exe", StringComparison.OrdinalIgnoreCase) || isLegacyGenerator);
 
                         if (isThisGenerator || isProjectGenerator)
                         {

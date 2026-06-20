@@ -7,8 +7,10 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $distDir = Join-Path $repoRoot "dist"
 $runtimeDir = Join-Path $distDir "runtime"
+$kernelDistDir = Join-Path $distDir "kernels"
 $buildDir = Join-Path $repoRoot "build\windows"
 $objDir = Join-Path $buildDir "obj"
+$packageRoot = Join-Path $buildDir "package"
 
 function First-ExistingPath {
     param([string[]]$Paths)
@@ -28,7 +30,7 @@ if (Test-Path -LiteralPath $distDir) {
     Remove-Item -LiteralPath $distDir -Recurse -Force
 }
 
-New-Item -ItemType Directory -Force -Path $distDir, $runtimeDir, $objDir | Out-Null
+New-Item -ItemType Directory -Force -Path $distDir, $runtimeDir, $kernelDistDir, $objDir | Out-Null
 
 $vcvars = First-ExistingPath @(
     "C:\Program\VC\Auxiliary\Build\vcvars64.bat",
@@ -59,9 +61,9 @@ $nativeBuildCmd = Join-Path $buildDir "build-native.cmd"
 @echo off
 call "$vcvars"
 if errorlevel 1 exit /b %errorlevel%
-cl.exe /c /I"$repoRoot\Curl\include" /I"$repoRoot\OpenCL\include" /Zi /nologo /W1 /WX- /diagnostics:column /O2 /D BUILDING_LIBCURL /D HTTP_ONLY /Gm- /EHsc /MD /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"$objDir\\" /external:W1 /Gd /TP /FC /errorReport:prompt "$repoRoot\Dispatcher.cpp" "$repoRoot\Mode.cpp" "$repoRoot\precomp.cpp" "$repoRoot\profanity.cpp" "$repoRoot\SpeedSample.cpp"
+cl.exe /c /utf-8 /I"$repoRoot\OpenCL\include" /Zi /nologo /W1 /WX- /diagnostics:column /O2 /Gm- /EHsc /MD /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"$objDir\\" /external:W1 /Gd /TP /FC /errorReport:prompt "$repoRoot\Dispatcher.cpp" "$repoRoot\KernelSources.cpp" "$repoRoot\Mode.cpp" "$repoRoot\precomp.cpp" "$repoRoot\profanity.cpp" "$repoRoot\SpeedSample.cpp"
 if errorlevel 1 exit /b %errorlevel%
-link.exe /ERRORREPORT:PROMPT /OUT:"$distDir\profanity.x64.exe" /NOLOGO /INCREMENTAL:NO /LIBPATH:"$repoRoot\Curl\lib" /LIBPATH:"$repoRoot\OpenCL\lib" OpenCL.lib libcurl_a.lib ws2_32.lib winmm.lib wldap32.lib crypt32.lib normaliz.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG:FULL /PDB:"$buildDir\profanity.pdb" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"$buildDir\profanity.lib" /MACHINE:X64 "$objDir\*.obj"
+link.exe /ERRORREPORT:PROMPT /OUT:"$distDir\shiyi.exe" /NOLOGO /INCREMENTAL:NO /LIBPATH:"$repoRoot\OpenCL\lib" OpenCL.lib bcrypt.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG:FULL /PDB:"$buildDir\shiyi.pdb" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"$buildDir\shiyi.lib" /MACHINE:X64 "$objDir\*.obj"
 exit /b %errorlevel%
 "@ | Set-Content -LiteralPath $nativeBuildCmd -Encoding ASCII
 
@@ -83,6 +85,7 @@ finally {
 
 Copy-Item -LiteralPath (Join-Path $repoRoot "profanity.txt") -Destination (Join-Path $distDir "profanity.txt") -Force
 Copy-Item -LiteralPath (Join-Path $repoRoot "profanity.txt") -Destination (Join-Path $runtimeDir "targets.txt") -Force
+Copy-Item -Path (Join-Path $repoRoot "kernels\*.cl") -Destination $kernelDistDir -Force
 
 @"
 @echo off
@@ -99,9 +102,10 @@ Run ``start.exe`` to open the Windows launcher.
 Files:
 
 - ``start.exe``: graphical launcher
-- ``profanity.x64.exe``: OpenCL generator used by the launcher
+- ``shiyi.exe``: OpenCL generator used by the launcher
 - ``runtime\targets.txt``: default target list
 - ``profanity.txt``: copy of the default target list
+- ``kernels\*.cl``: OpenCL kernels loaded by the generator
 "@ | Set-Content -LiteralPath (Join-Path $distDir "README.md") -Encoding UTF8
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -115,7 +119,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 profanity-tron $Version
 Built: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz")
 Launcher: start.exe
-Generator: profanity.x64.exe
+Generator: shiyi.exe
 "@ | Set-Content -LiteralPath (Join-Path $distDir "VERSION.txt") -Encoding UTF8
 
 $zipPath = Join-Path $distDir "profanity-tron-windows-$Version.zip"
@@ -123,15 +127,18 @@ if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
 
-$packageItems = @(
-    (Join-Path $distDir "start.exe"),
-    (Join-Path $distDir "profanity.x64.exe"),
-    (Join-Path $distDir "start.bat"),
-    (Join-Path $distDir "README.md"),
-    (Join-Path $distDir "VERSION.txt"),
-    (Join-Path $distDir "profanity.txt"),
-    (Join-Path $runtimeDir "targets.txt")
-)
+if (Test-Path -LiteralPath $packageRoot) {
+    Remove-Item -LiteralPath $packageRoot -Recurse -Force
+}
+New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
+Copy-Item -LiteralPath (Join-Path $distDir "start.exe") -Destination $packageRoot -Force
+Copy-Item -LiteralPath (Join-Path $distDir "shiyi.exe") -Destination $packageRoot -Force
+Copy-Item -LiteralPath (Join-Path $distDir "start.bat") -Destination $packageRoot -Force
+Copy-Item -LiteralPath (Join-Path $distDir "README.md") -Destination $packageRoot -Force
+Copy-Item -LiteralPath (Join-Path $distDir "VERSION.txt") -Destination $packageRoot -Force
+Copy-Item -LiteralPath (Join-Path $distDir "profanity.txt") -Destination $packageRoot -Force
+Copy-Item -LiteralPath $runtimeDir -Destination $packageRoot -Recurse -Force
+Copy-Item -LiteralPath $kernelDistDir -Destination $packageRoot -Recurse -Force
 
-Compress-Archive -LiteralPath $packageItems -DestinationPath $zipPath -Force
+Compress-Archive -Path (Join-Path $packageRoot "*") -DestinationPath $zipPath -Force
 Write-Host "Built $zipPath"

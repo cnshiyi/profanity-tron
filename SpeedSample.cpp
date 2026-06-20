@@ -35,6 +35,11 @@ void SpeedSample::sample(const double V) {
 	}
 }
 
+void SpeedSample::reset() {
+	m_lSpeeds.clear();
+	m_lastTime = now();
+}
+
 SpeedSample::timepoint SpeedSample::now() {
 	return std::chrono::steady_clock::now();
 }
