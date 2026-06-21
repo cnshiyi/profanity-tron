@@ -24,12 +24,12 @@
 ### 本地构建
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.16
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.17
 ```
 
 如果 Windows Application Control / 企业策略要求签名，可传入 `-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。
 
-生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.16.zip`。开发 profiling 构建可额外传入 `-DebugNative`。
+生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.17.zip`。开发 profiling 构建可额外传入 `-DebugNative`。
 
 ### 当前验证
 
@@ -39,6 +39,7 @@ RTX 3070 当前可信样本：
 - 全 0 初始私钥、后 16 位向上、后 8 位地址测试 60 秒：383.174 MH/s
 - Debug profiling 样本：iterate 约 66.1 ms，inverse 约 38.5 ms，score 约 24.7 ms
 - 默认调参输出：`work = 32`，`inverse-multiple = 196608`
+- v1.0.17 最终合法目标 5 秒冒烟：352.834 MH/s；非法 `0` 目标会被拒绝
 
 400 MH/s 目标尚未达成，需要继续优化。
 
@@ -68,12 +69,12 @@ This is a Windows / OpenCL Tron vanity address generator. The Windows launcher i
 ### Local Build
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.16
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.17
 ```
 
 If Windows Application Control or an enterprise policy requires signing, pass `-SignThumbprint` or `-SignPfxPath/-SignPfxPassword`.
 
-Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.16.zip`. Add `-DebugNative` for a development profiling build.
+Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.17.zip`. Add `-DebugNative` for a development profiling build.
 
 ### Current Verification
 
@@ -83,6 +84,7 @@ Current trusted RTX 3070 samples:
 - All-zero initial key, last-16 upward, address last-8 test, 60 seconds: 383.174 MH/s
 - Debug profiling sample: iterate about 66.1 ms, inverse about 38.5 ms, score about 24.7 ms
 - Default tuning output: `work = 32`, `inverse-multiple = 196608`
+- v1.0.17 final valid-target 5-second smoke: 352.834 MH/s; invalid `0` targets are rejected
 
 The 400 MH/s target has not been reached yet and needs further optimization.
 

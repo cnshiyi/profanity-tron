@@ -264,7 +264,7 @@ namespace ProfanityTronStudio
             if (File.Exists(defaultTargetsPath))
             {
                 var text = NormalizeTargetText(File.ReadAllText(defaultTargetsPath, Encoding.UTF8));
-                if (!string.IsNullOrWhiteSpace(text) && !ContainsLegacyRedactedTarget(text))
+                if (!string.IsNullOrWhiteSpace(text) && AreValidTargetLines(text))
                 {
                     return text;
                 }
@@ -289,17 +289,31 @@ namespace ProfanityTronStudio
             });
         }
 
-        private static bool ContainsLegacyRedactedTarget(string text)
+        private static bool AreValidTargetLines(string text)
         {
-            return (text ?? string.Empty).IndexOf(UiText.T("005B 94F6 884C 5361 005D"), StringComparison.Ordinal) >= 0;
+            var lines = NormalizeTargetText(text)
+                .Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+            return lines.Length > 0 && lines.All(IsValidTargetLine);
+        }
+
+        private static bool IsValidTargetLine(string line)
+        {
+            var target = NormalizeTargetLine(line);
+            if (target.Length != 34 || target[0] != 'T') return false;
+            return target.All(IsBase58Character);
+        }
+
+        private static bool IsBase58Character(char value)
+        {
+            const string alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+            return alphabet.IndexOf(value) >= 0;
         }
 
         private void SaveTargets()
         {
             var targets = GetTargets();
-            if (targets.Count == 0)
+            if (!TryValidateTargets(targets, true))
             {
-                AddLog(UiText.T("76EE 6807 5730 5740 5217 8868 4E3A 7A7A 3002"), true);
                 return;
             }
 
@@ -316,10 +330,29 @@ namespace ProfanityTronStudio
                 .ToList();
         }
 
+        private bool TryValidateTargets(List<string> targets, bool resetEditor)
+        {
+            if (targets.Count == 0)
+            {
+                AddLog(UiText.T("76EE 6807 5730 5740 5217 8868 4E3A 7A7A 3002"), true);
+                return false;
+            }
+
+            var invalidTarget = targets.FirstOrDefault(line => !IsValidTargetLine(line));
+            if (invalidTarget == null) return true;
+
+            AddLog(UiText.T("76EE 6807 5730 5740 5305 542B 975E 6CD5 5B57 7B26 FF1B 0054 0052 004F 004E 002F 0042 0061 0073 0065 0035 0038 0020 5730 5740 4E0D 80FD 5305 542B 0020 0030 0020 6216 0020 005B 94F6 884C 5361 005D FF1A") + " " + invalidTarget, true);
+            if (resetEditor)
+            {
+                targetEditor.Text = GetDefaultTargetText();
+            }
+            return false;
+        }
+
         private string GetMatchingArgument()
         {
             var targets = GetTargets();
-            if (targets.Count == 0) return string.Empty;
+            if (!TryValidateTargets(targets, false)) return string.Empty;
             if (targets.Count == 1) return targets[0];
             Directory.CreateDirectory(runtimeDir);
             WriteTargetLines(defaultTargetsPath, targets);

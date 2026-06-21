@@ -143,6 +143,20 @@ $defaultTargets = [System.IO.File]::ReadAllText((Join-Path $repoRoot "profanity.
 $targetLines = $defaultTargets -replace "`r`n", "`n" -replace "`r", "`n" -split "`n" |
     ForEach-Object { $_.Trim().TrimStart([char]0xFEFF) } |
     Where-Object { $_.Length -gt 0 }
+if ($targetLines.Count -eq 0) {
+    throw "Default target list is empty."
+}
+$base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+foreach ($line in $targetLines) {
+    if ($line.Length -ne 34 -or $line[0] -ne 'T') {
+        throw "Default target must be a 34-character TRON address: $line"
+    }
+    foreach ($ch in $line.ToCharArray()) {
+        if ($base58Alphabet.IndexOf($ch) -lt 0) {
+            throw "Default target contains invalid TRON/Base58 character '$ch': $line"
+        }
+    }
+}
 $normalizedTargets = ($targetLines -join "`r`n") + "`r`n"
 [System.IO.File]::WriteAllText((Join-Path $distDir "profanity.txt"), $normalizedTargets, $utf8NoBom)
 [System.IO.File]::WriteAllText((Join-Path $runtimeDir "targets.txt"), $normalizedTargets, $utf8NoBom)

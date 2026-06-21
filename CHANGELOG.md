@@ -1,5 +1,18 @@
 # Version Record
 
+## v1.0.17 - 2026-06-21
+
+- 中文：启动器读取旧 `runtime/targets.txt` 时会校验每一行目标，发现 `[银行卡]`、`0` 或其他非 TRON/Base58 字符时自动回退到合法默认目标。
+- English: The launcher now validates every loaded `runtime/targets.txt` target and falls back to the clean defaults when it finds `[银行卡]`, `0`, or any other non-TRON/Base58 character.
+- 中文：保存目标和开始生成前会阻止非法目标，避免旧占位文本或含 `0` 的地址再次写回运行目录。
+- English: Saving targets and starting generation now reject invalid targets, preventing legacy placeholder text or addresses containing `0` from being written back to runtime files.
+- 中文：原生 `shiyi.exe` 对命令行传入的 34 位 TRON 地址增加 Base58 校验，直接传入含 `0` 的目标会报错退出。
+- English: Native `shiyi.exe` now validates direct 34-character TRON target arguments and exits with an error when the target contains `0`.
+- 中文：Windows 构建脚本在打包默认目标前执行同样的 Base58 校验，防止发布包重新混入非法默认目标。
+- English: The Windows build script now applies the same Base58 validation before packaging default targets, preventing invalid defaults from entering release packages.
+- 中文：v1.0.17 构建验证：`dist/profanity.txt`、`dist/runtime/targets.txt` 和 zip 内目标均为 `1-9 + A` 十行；非法 `0` 地址拦截成功；最终合法目标 5 秒冒烟为 352.834 MH/s；未发现残留进程。
+- English: v1.0.17 build verification: `dist/profanity.txt`, `dist/runtime/targets.txt`, and zip targets all contain the 10-line `1-9 + A` set; invalid `0` target rejection passed; the final valid-target 5-second smoke test reached 352.834 MH/s; no residual processes were found.
+
 ## v1.0.16 - 2026-06-21
 
 - 中文：为 Windows 构建脚本增加 `-DebugNative` 开关，用于编译带 `PROFANITY_DEBUG` 的 profiling 版本，不影响默认发布构建。

@@ -35,6 +35,15 @@ static std::string trimTargetLine(std::string line) {
 	return line;
 }
 
+static bool isBase58Character(char c) {
+	const std::string alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+	return alphabet.find(c) != std::string::npos;
+}
+
+static bool isValidTronAddress(const std::string& line) {
+	return line.size() == 34 && line[0] == 'T' && std::all_of(line.begin(), line.end(), isBase58Character);
+}
+
 Mode Mode::matching(std::string matchingInput) {
 	Mode r;
 	std::vector<std::string> matchingList;
@@ -42,6 +51,10 @@ Mode Mode::matching(std::string matchingInput) {
 	matchingInput = trimTargetLine(matchingInput);
 
 	if(matchingInput.size() == 34 && matchingInput[0] == 'T') {
+		if(!isValidTronAddress(matchingInput)) {
+			std::cout << "error: matching target contains invalid TRON/Base58 characters; 0 is not allowed. :<" << std::endl;
+			return r;
+		}
 		std::stringstream ss;
 		matchingInput.erase(10, 14);
 		for (const char &item: matchingInput) {
@@ -55,7 +68,7 @@ Mode Mode::matching(std::string matchingInput) {
 			while (std::getline(file, line)) {
 				line = trimTargetLine(line);
 				std::stringstream ss;
-				if(line.size() == 20 || line.size() == 34) {
+				if(line.size() == 20 || isValidTronAddress(line)) {
 					if(line.size() == 34) {
 						line.erase(10, 14);
 					}

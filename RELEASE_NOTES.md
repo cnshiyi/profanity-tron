@@ -1,4 +1,4 @@
-# v1.0.16
+# v1.0.17
 
 ## 中文
 
@@ -6,7 +6,7 @@
 
 - Windows 图形启动器：`start.exe`
 - 原生 OpenCL 生成器：`shiyi.exe`
-- 发布资产文件：`shiyi-v1.0.16.zip`
+- 发布资产文件：`shiyi-v1.0.17.zip`
 - 运行时 OpenCL 内核：`kernels/*.cl`
 - 默认目标文件：`profanity.txt` 和 `runtime/targets.txt`
 - 启动辅助脚本：`start.bat`
@@ -14,22 +14,24 @@
 
 ### 本次更新
 
-- 增加 `scripts/build-windows.ps1 -DebugNative`，用于构建带 `PROFANITY_DEBUG` 的 profiling 版本。
-- Debug profiling 输出现在包含 inverse、iterate、score 三段 OpenCL kernel 时间，便于后续针对主热点优化。
-- 默认发布构建不启用 debug profiling，不改变普通用户运行路径。
-- 继续保留 v1.0.15 的默认目标修复、重复计数修复和 `--quit-count` 唯一命中计数语义。
+- 启动器读取旧 `runtime/targets.txt` 时会校验每一行目标。
+- 如果旧目标包含 `[银行卡]`、`0` 或其他 TRON/Base58 不支持的字符，界面会自动回退到合法默认目标。
+- 保存目标和开始生成前会阻止非法目标，避免旧占位文本或含 `0` 的地址再次写回运行目录。
+- 原生 `shiyi.exe` 对直接传入的 34 位 TRON 地址增加 Base58 校验，含 `0` 的目标会报错退出。
+- Windows 构建脚本在打包前校验默认目标，防止发布包混入非法默认目标。
 
 ### 验证
 
-- 线上 v1.0.15 发行包 1 分钟串行基线：随机后 8 位 383.908 MH/s。
-- 线上 v1.0.15 发行包 1 分钟串行基线：后 16 位向上 range 383.174 MH/s。
-- Debug profiling 样本：iterate 约 66.1 ms，inverse 约 38.5 ms，score 约 24.7 ms。
-- 拒绝无稳定收益实验：benchmark 跳过结果清零、SHA256 局部清零、OpenCL build options、`negativeGx` 常量区实验。
+- `dist/profanity.txt` 和 `dist/runtime/targets.txt` 均为 `1-9 + A` 十行默认目标。
+- `shiyi-v1.0.17.zip` 包内包含 `shiyi.exe`、`start.exe`，不包含旧名 `profanity.x64.exe`。
+- zip 包内 `profanity.txt` 和 `runtime/targets.txt` 均不含 `[银行卡]` 或 `0` 默认目标。
+- 直接传入 `TTTTTTTTTTTTTTTTT00000000000000000` 会被 `shiyi.exe` 拒绝。
+- 最终合法目标 5 秒冒烟测试通过：352.834 MH/s。
 - 构建/测试后未发现残留 `shiyi`、旧 `profanity*`、`TronStudio` 或 `start` 进程。
 
 ### 性能状态
 
-400 MH/s 目标尚未达成。本版本是 profiling 和证据补强版本，定位到下一步应优先优化 iterate/inverse 主内核，而不是继续做参数微调。
+本版本修复默认目标和非法目标回灌问题，不声明 400 MH/s 已达成。400 MH/s 优化目标继续保持打开，后续仍应优先优化 iterate/inverse 主内核。
 
 ## English
 
@@ -37,7 +39,7 @@
 
 - Windows launcher: `start.exe`
 - Native OpenCL generator: `shiyi.exe`
-- Release asset file: `shiyi-v1.0.16.zip`
+- Release asset file: `shiyi-v1.0.17.zip`
 - Runtime OpenCL kernels: `kernels/*.cl`
 - Default target files: `profanity.txt` and `runtime/targets.txt`
 - Launcher helper: `start.bat`
@@ -45,19 +47,21 @@
 
 ### Changes
 
-- Added `scripts/build-windows.ps1 -DebugNative` for building a `PROFANITY_DEBUG` profiling binary.
-- Debug profiling now prints inverse, iterate, and score OpenCL kernel timings to guide the next hotspot optimization pass.
-- The default release build does not enable debug profiling and does not change the normal user runtime path.
-- Keeps the v1.0.15 default-target fix, duplicate-counting fix, and unique-hit `--quit-count` behavior.
+- The launcher now validates every target loaded from an existing `runtime/targets.txt`.
+- If an old target contains `[银行卡]`, `0`, or any other character unsupported by TRON/Base58, the launcher falls back to the clean default target list.
+- Saving targets and starting generation now reject invalid targets, preventing legacy placeholders or `0` targets from being written back to runtime files.
+- Native `shiyi.exe` now validates direct 34-character TRON target arguments and rejects targets containing `0`.
+- The Windows build script validates default targets before packaging, preventing invalid defaults from entering release packages.
 
 ### Verification
 
-- Online v1.0.15 release package serial 1-minute baseline: random last-8 reached 383.908 MH/s.
-- Online v1.0.15 release package serial 1-minute baseline: last-16 upward range reached 383.174 MH/s.
-- Debug profiling sample: iterate about 66.1 ms, inverse about 38.5 ms, and score about 24.7 ms.
-- Rejected experiments without stable gains: skipping result clearing in benchmark mode, partial SHA256 clearing, OpenCL build options, and the `negativeGx` constant-memory experiment.
+- `dist/profanity.txt` and `dist/runtime/targets.txt` both contain the 10-line `1-9 + A` default target set.
+- `shiyi-v1.0.17.zip` contains `shiyi.exe` and `start.exe`, with no legacy `profanity.x64.exe`.
+- Packaged `profanity.txt` and `runtime/targets.txt` contain no `[银行卡]` text and no `0` default target.
+- Passing `TTTTTTTTTTTTTTTTT00000000000000000` directly to `shiyi.exe` is rejected.
+- Final valid-target 5-second smoke test passed: 352.834 MH/s.
 - No leftover `shiyi`, old `profanity*`, `TronStudio`, or `start` processes were found after build and tests.
 
 ### Performance Status
 
-The 400 MH/s target has not been reached yet. This is a profiling and evidence release; it shows the next pass should prioritize the iterate/inverse main kernels instead of parameter micro-tuning.
+This release fixes default-target and invalid-target persistence issues. It does not claim the 400 MH/s goal has been reached. The 400 MH/s optimization target remains open, and the next optimization pass should still prioritize the iterate/inverse kernels.
