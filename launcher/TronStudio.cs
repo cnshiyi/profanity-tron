@@ -159,7 +159,7 @@ namespace ProfanityTronStudio
             hitCountValue.ForeColor = Color.Blue;
             var rangeHint = new Label
             {
-                Text = UiText.T("6307 5B9A 4F4D 6570 4EC5 652F 6301 0020 0031 002D 0031 0036 0020 4F4D 5341 516D 8FDB 5236 7A97 53E3 FF1B 7559 7A7A 4E3A 666E 901A 968F 673A 6A21 5F0F 3002"),
+                Text = UiText.T("6307 5B9A 4F4D 6570 4EC5 652F 6301 0020 0031 002D 0031 0036 0020 4E2A 79C1 94A5 540E 7F00 5341 516D 8FDB 5236 4F4D FF1B 7559 7A7A 4E3A 666E 901A 968F 673A 6A21 5F0F 3002"),
                 Location = new Point(910, 106),
                 Size = new Size(455, 22),
                 Font = UiFont(9f),
@@ -645,7 +645,7 @@ namespace ProfanityTronStudio
         private static string BuildRangeEnd(string startKey, int digits, bool directionUp)
         {
             var chars = startKey.ToCharArray();
-            var first = 16 - digits;
+            var first = 64 - digits;
             ulong value = Convert.ToUInt64(startKey.Substring(first, digits), 16);
             ulong limit = digits == 16 ? ulong.MaxValue : ((1UL << (digits * 4)) - 1UL);
             ulong endValue = directionUp ? limit : 0UL;

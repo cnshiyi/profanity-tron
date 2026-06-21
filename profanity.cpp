@@ -399,6 +399,11 @@ static std::string clUlong4ToHex(const cl_ulong4 &value)
 	return ss.str();
 }
 
+static bool isZeroPrivateKey(const cl_ulong4 &value)
+{
+	return value.s[0] == 0 && value.s[1] == 0 && value.s[2] == 0 && value.s[3] == 0;
+}
+
 static cl_ulong makeNibbleMask(unsigned int nibbles)
 {
 	if (nibbles == 0)
@@ -502,25 +507,23 @@ static SearchRange buildSearchRange(
 		throw std::runtime_error("range start and end are identical");
 	}
 
-	if (lastDiff > 15)
-	{
-		throw std::runtime_error("current range mode supports changing only the first 16 hex chars of the private key");
-	}
-
 	const unsigned int variableNibbles = static_cast<unsigned int>(lastDiff - firstDiff + 1);
 	if (variableNibbles > 16)
 	{
 		throw std::runtime_error("range window cannot be wider than 16 hex chars");
 	}
-	if (lastDiff != 15)
+	const unsigned int hexLane = static_cast<unsigned int>(firstDiff / 16);
+	if (hexLane != static_cast<unsigned int>(lastDiff / 16))
 	{
-		throw std::runtime_error("current range mode requires the variable window to end at hex position 16");
+		throw std::runtime_error("range window cannot cross a 64-bit private-key lane; use 1-16 hex chars inside one 16-char block");
 	}
-	const unsigned int lowFixedNibblesInHighWord = 15u - static_cast<unsigned int>(lastDiff);
-	if (lowFixedNibblesInHighWord > 31)
+	const unsigned int laneEnd = hexLane * 16 + 15;
+	if (lastDiff != laneEnd)
 	{
-		throw std::runtime_error("range window is too low for foundId-based control");
+		throw std::runtime_error("range window must end at the right edge of its 16-hex private-key block");
 	}
+	const unsigned int lowFixedNibblesInLane = laneEnd - static_cast<unsigned int>(lastDiff);
+	const unsigned int counterLane = 3u - hexLane;
 
 	for (size_t i = 0; i < 64; ++i)
 	{
@@ -540,15 +543,40 @@ static SearchRange buildSearchRange(
 	range.start = hexToClUlong4(startHex);
 	range.end = hexToClUlong4(endHex);
 
-	const cl_ulong variableMask = makeNibbleMask(variableNibbles) << (lowFixedNibblesInHighWord * 4);
-	const cl_ulong counterLow = (range.start.s[3] & variableMask) >> (lowFixedNibblesInHighWord * 4);
-	const cl_ulong counterEnd = (range.end.s[3] & variableMask) >> (lowFixedNibblesInHighWord * 4);
+	const cl_ulong variableMask = makeNibbleMask(variableNibbles) << (lowFixedNibblesInLane * 4);
+	cl_ulong counterLow = (range.start.s[counterLane] & variableMask) >> (lowFixedNibblesInLane * 4);
+	cl_ulong counterEnd = (range.end.s[counterLane] & variableMask) >> (lowFixedNibblesInLane * 4);
+	if ((!range.descending && counterLow > counterEnd) || (range.descending && counterLow < counterEnd))
+	{
+		throw std::runtime_error("range direction conflicts with the selected private-key window");
+	}
+	if (isZeroPrivateKey(range.start) && !range.descending)
+	{
+		if (counterLane != 0 || lowFixedNibblesInLane != 0 || counterEnd == 0)
+		{
+			throw std::runtime_error("range includes the invalid zero private key; use a range ending in the low 64-bit lane or start from 1");
+		}
+		range.start.s[0] = 1;
+		counterLow = 1;
+		range.skippedZero = true;
+	}
+	if (isZeroPrivateKey(range.end) && range.descending)
+	{
+		if (counterLane != 0 || lowFixedNibblesInLane != 0 || counterLow == 0)
+		{
+			throw std::runtime_error("range includes the invalid zero private key; use a range ending in the low 64-bit lane or end at 1");
+		}
+		range.end.s[0] = 1;
+		counterEnd = 1;
+		range.skippedZero = true;
+	}
 	range.counterMask = makeNibbleMask(variableNibbles);
 	range.counterMax = range.descending ? (counterLow - counterEnd) : (counterEnd - counterLow);
 	++range.counterMax;
-	range.prefixHigh = range.start.s[3] & ~variableMask;
+	range.counterLane = counterLane;
+	range.laneFixed = range.start.s[counterLane] & ~variableMask;
 	range.counterStart = counterLow;
-	range.counterShift = lowFixedNibblesInHighWord * 4;
+	range.counterShift = lowFixedNibblesInLane * 4;
 
 	std::cout << "Range:" << std::endl;
 	std::cout << "  start = " << clUlong4ToHex(range.start) << std::endl;
@@ -556,7 +584,12 @@ static SearchRange buildSearchRange(
 	std::cout << "  direction = " << (range.descending ? "down" : "up") << std::endl;
 	std::cout << "  variable hex = " << (range.hexFirst + 1) << "-" << (range.hexLast + 1) << std::endl;
 	std::cout << "  max steps = " << range.counterMax << std::endl;
-	std::cout << "  note = range mode constrains the first 64-bit private-key lane" << std::endl;
+	std::cout << "  lane = " << range.counterLane << std::endl;
+	std::cout << "  note = range mode constrains one 64-bit private-key lane" << std::endl;
+	if (range.skippedZero)
+	{
+		std::cout << "  note = skipped invalid private key 0" << std::endl;
+	}
 
 	return range;
 }
@@ -585,6 +618,7 @@ void autoTuneForDevices(
 	const std::vector<cl_device_id> &devices,
 	const bool userSetWorksizeLocal,
 	const bool userSetInverseMultiple,
+	const size_t inverseSize,
 	size_t &worksizeLocal,
 	size_t &inverseMultiple)
 {
@@ -601,16 +635,15 @@ void autoTuneForDevices(
 		const auto vendor = clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_VENDOR);
 		const auto name = clGetWrapperString(clGetDeviceInfo, deviceId, CL_DEVICE_NAME);
 		const auto maxWorkGroupSize = clGetWrapper<size_t>(clGetDeviceInfo, deviceId, CL_DEVICE_MAX_WORK_GROUP_SIZE);
+		const auto computeUnits = clGetWrapper<cl_uint>(clGetDeviceInfo, deviceId, CL_DEVICE_MAX_COMPUTE_UNITS);
 		const auto globalMemSize = clGetWrapper<cl_ulong>(clGetDeviceInfo, deviceId, CL_DEVICE_GLOBAL_MEM_SIZE);
 		const bool isNvidia = vendor.find("NVIDIA") != std::string::npos || name.find("NVIDIA") != std::string::npos;
 		const bool isIntel = vendor.find("Intel") != std::string::npos || name.find("Intel") != std::string::npos;
-		const bool hasEnoughMemory = globalMemSize >= (cl_ulong)6 * 1024 * 1024 * 1024;
-		const bool hasLargeBatchMemory = globalMemSize >= (cl_ulong)15 * 1024 * 1024 * 1024 / 2;
 		size_t candidateWorksizeLocal = 64;
 
 		if (isNvidia)
 		{
-			candidateWorksizeLocal = hasLargeBatchMemory ? 128 : (hasEnoughMemory ? 512 : 256);
+			candidateWorksizeLocal = 64;
 		}
 		else if (isIntel)
 		{
@@ -635,13 +668,35 @@ void autoTuneForDevices(
 			}
 		}
 
-		if (!userSetInverseMultiple && isNvidia && hasLargeBatchMemory)
+		if (!userSetInverseMultiple && isNvidia)
 		{
-			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (size_t)237568);
-		}
-		else if (!userSetInverseMultiple && isNvidia && hasEnoughMemory)
-		{
-			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (size_t)32768);
+			const cl_ulong perKeyBytes = 96;
+			const cl_ulong memoryBudget = globalMemSize * 45 / 100;
+			const cl_ulong maxByMemory = inverseSize == 0 ? 0 : memoryBudget / (perKeyBytes * inverseSize);
+			size_t memoryBucket = 32768;
+			const size_t buckets[] = { 32768, 65536, 131072, 262144, 393216, 524288 };
+			for (const size_t bucket : buckets)
+			{
+				if (maxByMemory >= bucket)
+				{
+					memoryBucket = bucket;
+				}
+			}
+
+			size_t computeBucket = 131072;
+			if (computeUnits >= 128)
+			{
+				computeBucket = 524288;
+			}
+			else if (computeUnits >= 96)
+			{
+				computeBucket = 393216;
+			}
+			else if (computeUnits >= 64)
+			{
+				computeBucket = 262144;
+			}
+			tunedInverseMultiple = (std::max)(tunedInverseMultiple, (std::min)(memoryBucket, computeBucket));
 		}
 		else if (!userSetInverseMultiple && isIntel)
 		{
@@ -823,7 +878,7 @@ int main(int argc, char **argv)
 			}
 		}
 
-		autoTuneForDevices(vGpuDevices, userSetWorksizeLocal, userSetInverseMultiple, worksizeLocal, inverseMultiple);
+		autoTuneForDevices(vGpuDevices, userSetWorksizeLocal, userSetInverseMultiple, inverseSize, worksizeLocal, inverseMultiple);
 
 		if (!userSetWorksizeLocal || !userSetInverseMultiple || !userSetWorksizeMax)
 		{

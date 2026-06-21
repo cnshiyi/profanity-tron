@@ -61,9 +61,9 @@ $nativeBuildCmd = Join-Path $buildDir "build-native.cmd"
 @echo off
 call "$vcvars"
 if errorlevel 1 exit /b %errorlevel%
-cl.exe /c /utf-8 /I"$repoRoot\OpenCL\include" /Zi /nologo /W1 /WX- /diagnostics:column /O2 /Gm- /EHsc /MD /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"$objDir\\" /external:W1 /Gd /TP /FC /errorReport:prompt "$repoRoot\Dispatcher.cpp" "$repoRoot\KernelSources.cpp" "$repoRoot\Mode.cpp" "$repoRoot\precomp.cpp" "$repoRoot\profanity.cpp" "$repoRoot\SpeedSample.cpp"
+cl.exe /c /utf-8 /I"$repoRoot\OpenCL\include" /nologo /W1 /WX- /diagnostics:column /O2 /EHsc /MD /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"$objDir\\" /external:W1 /Gd /TP /FC /errorReport:prompt "$repoRoot\Dispatcher.cpp" "$repoRoot\KernelSources.cpp" "$repoRoot\Mode.cpp" "$repoRoot\precomp.cpp" "$repoRoot\profanity.cpp" "$repoRoot\SpeedSample.cpp"
 if errorlevel 1 exit /b %errorlevel%
-link.exe /ERRORREPORT:PROMPT /OUT:"$distDir\shiyi.exe" /NOLOGO /INCREMENTAL:NO /LIBPATH:"$repoRoot\OpenCL\lib" OpenCL.lib bcrypt.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG:FULL /PDB:"$buildDir\shiyi.pdb" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"$buildDir\shiyi.lib" /MACHINE:X64 "$objDir\*.obj"
+link.exe /ERRORREPORT:PROMPT /OUT:"$distDir\shiyi.exe" /NOLOGO /INCREMENTAL:NO /LIBPATH:"$repoRoot\OpenCL\lib" OpenCL.lib bcrypt.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"$buildDir\shiyi.lib" /MACHINE:X64 "$objDir\*.obj"
 exit /b %errorlevel%
 "@ | Set-Content -LiteralPath $nativeBuildCmd -Encoding ASCII
 

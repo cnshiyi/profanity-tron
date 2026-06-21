@@ -29,11 +29,13 @@
 struct SearchRange {
 	bool enabled;
 	bool descending;
+	bool skippedZero;
 	cl_ulong4 start;
 	cl_ulong4 end;
 	unsigned int hexFirst;
 	unsigned int hexLast;
-	cl_ulong prefixHigh;
+	cl_uint counterLane;
+	cl_ulong laneFixed;
 	cl_ulong counterStart;
 	cl_ulong counterMask;
 	cl_ulong counterMax;

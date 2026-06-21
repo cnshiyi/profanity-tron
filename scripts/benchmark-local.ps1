@@ -47,7 +47,22 @@ $startInfo.Arguments = ($Arguments | ForEach-Object {
 
 $process = [System.Diagnostics.Process]::new()
 $process.StartInfo = $startInfo
-[void]$process.Start()
+try {
+    [void]$process.Start()
+} catch [System.ComponentModel.Win32Exception] {
+    $message = $_.Exception.Message
+    Set-Content -LiteralPath $stdoutPath -Value "" -Encoding UTF8
+    Set-Content -LiteralPath $stderrPath -Value $message -Encoding UTF8
+    [pscustomobject]@{
+        Name = $Name
+        ExitCode = "BLOCKED"
+        Speed = ""
+        Stdout = $stdoutPath
+        Stderr = $stderrPath
+        Error = $message
+    }
+    return
+}
 
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
     Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue

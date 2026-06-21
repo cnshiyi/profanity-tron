@@ -24,9 +24,10 @@ Usage: ./profanity [OPTIONS]
     --range-end            End private key, up to 64 hex chars
     --range-direction      up or down, default up
 
-    Current range mode controls one continuous window in the first 16 private-key
-    hex chars. The window must end at hex position 16. Leave range arguments empty
-    for secure random mode.
+    Range mode controls one continuous 1-16 hex-char window inside a single
+    16-char private-key block. The window must end at the right edge of that
+    block, for example the last 16 hex chars. Leave range arguments empty for
+    secure random mode.
 
   Device:
     --skip                 Skip GPU device by index

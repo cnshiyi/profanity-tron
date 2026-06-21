@@ -1,5 +1,18 @@
 # Version Record
 
+## v1.0.9 - 2026-06-21
+
+- 中文：修复范围模式只支持私钥前 16 位的问题，现在可支持任意一个 16 位私钥块内的连续 1-16 个十六进制位。
+- English: Fixed range mode being limited to the first 16 private-key hex chars; it now supports any continuous 1-16 hex chars inside one 16-char private-key block.
+- 中文：启动器“位数”现在按私钥后缀生成范围；全 0 初始私钥会自动跳过无效私钥 `0`。
+- English: The launcher digit-count range builder now edits suffix digits; an all-zero initial private key skips invalid private key `0`.
+- 中文：修复范围模式命中后私钥回写少 1 的问题，输出私钥已通过独立 secp256k1 + Keccak 校验。
+- English: Fixed range-mode private-key reporting being off by one; printed private keys were verified independently with secp256k1 + Keccak.
+- 中文：NVIDIA 默认调参改为按显存预算和计算单元分档，不再把 RTX 3070 参数硬编码给所有 NVIDIA 显卡。
+- English: NVIDIA default tuning now uses memory-budget and compute-unit tiers instead of hard-coding RTX 3070-class values for all NVIDIA GPUs.
+- 中文：RTX 3070 可信样本为随机单目标 353.158 MH/s、默认多目标 331.924 MH/s、全 0 后 16 位向上 333.261 MH/s；400 MH/s 目标尚未达成。
+- English: Trusted RTX 3070 samples are random single-target 353.158 MH/s, default multi-target 331.924 MH/s, and all-zero last-16 upward 333.261 MH/s; the 400 MH/s target is not reached yet.
+
 ## v1.0.8 - 2026-06-21
 
 - 中文：修正默认目标地址列表，将误写入的 `[银行卡]` 占位文本恢复为 0 到 9 各一行的真实目标。

@@ -10,6 +10,13 @@
 #include <algorithm>
 #include <tuple>
 #include <ctime>
+#include <cerrno>
+
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <sys/stat.h>
+#endif
 
 #include "precomp.hpp"
 #ifdef _WIN32
@@ -108,19 +115,78 @@ static std::string toTron(const std::string &str)
 	return tronAddressBase58;
 }
 
+static void createDirectoryIfMissing(const std::string &path)
+{
+	if (path.empty())
+	{
+		return;
+	}
+#ifdef _WIN32
+	if (_mkdir(path.c_str()) != 0 && errno != EEXIST)
+#else
+	if (mkdir(path.c_str(), 0755) != 0 && errno != EEXIST)
+#endif
+	{
+		return;
+	}
+}
+
+static void createParentDirectories(const std::string &path)
+{
+	size_t start = 0;
+	if (path.size() >= 3 && path[1] == ':' && (path[2] == '\\' || path[2] == '/'))
+	{
+		start = 3;
+	}
+	for (size_t pos = path.find_first_of("\\/", start); pos != std::string::npos; pos = path.find_first_of("\\/", pos + 1))
+	{
+		createDirectoryIfMissing(path.substr(0, pos));
+	}
+}
+
 SearchRange::SearchRange()
 	: enabled(false),
 	  descending(false),
+	  skippedZero(false),
 	  start{{0, 0, 0, 0}},
 	  end{{0, 0, 0, 0}},
 	  hexFirst(0),
 	  hexLast(63),
-	  prefixHigh(0),
+	  counterLane(3),
+	  laneFixed(0),
 	  counterStart(0),
 	  counterMask(0),
 	  counterMax(0),
 	  counterShift(0)
 {
+}
+
+static cl_ulong4 addScalar64(cl_ulong4 value, cl_ulong addend)
+{
+	value.s[0] += addend;
+	cl_ulong carry = value.s[0] < addend;
+	value.s[1] += carry;
+	carry = carry && !value.s[1];
+	value.s[2] += carry;
+	carry = carry && !value.s[2];
+	value.s[3] += carry;
+	return value;
+}
+
+static cl_ulong4 candidatePrivateForRange(
+	cl_ulong4 seed,
+	cl_ulong round,
+	cl_uint foundId,
+	const SearchRange &range)
+{
+	const cl_ulong rangeOffset = static_cast<cl_ulong>(foundId) << range.counterShift;
+	if (range.counterLane <= 3)
+	{
+		seed.s[range.counterLane] = range.descending
+			? seed.s[range.counterLane] - rangeOffset
+			: seed.s[range.counterLane] + rangeOffset;
+	}
+	return addScalar64(seed, round + 1);
 }
 
 unsigned int getKernelExecutionTimeMicros(cl_event &e)
@@ -349,7 +415,7 @@ void Dispatcher::addDevice(
 void Dispatcher::prepareRangeDevice(Device &d)
 {
 	d.m_clSeed = m_range.start;
-	d.m_clSeed.s[3] = m_range.prefixHigh | (m_range.counterStart << m_range.counterShift);
+	d.m_clSeed.s[m_range.counterLane] = m_range.laneFixed | (m_range.counterStart << m_range.counterShift);
 }
 
 void Dispatcher::run()
@@ -568,6 +634,8 @@ void Dispatcher::initBegin(Device &d)
 	d.m_memResult.setKernelArg(kernelInit, 3);
 	CLMemory<cl_ulong4>::setKernelArg(kernelInit, 4, d.m_clSeed);
 	CLMemory<cl_uchar>::setKernelArg(kernelInit, 5, m_range.enabled && m_range.descending ? 1 : 0);
+	CLMemory<cl_uchar>::setKernelArg(kernelInit, 6, m_range.enabled ? static_cast<cl_uchar>(m_range.counterShift) : 0);
+	CLMemory<cl_uchar>::setKernelArg(kernelInit, 7, m_range.enabled ? static_cast<cl_uchar>(m_range.counterLane) : 3);
 
 	// Kernel arguments - profanity_inverse
 	cl_kernel &kernelInverse = d.m_kernelInverse;
@@ -686,7 +754,6 @@ void Dispatcher::enqueueKernel(cl_command_queue &clQueue, cl_kernel &clKernel, s
 void Dispatcher::dispatch(Device &d)
 {
 	cl_event event;
-	d.m_memResult.read(false, &event);
 #ifdef PROFANITY_DEBUG
 	cl_event eventInverse;
 	cl_event eventIterate;
@@ -697,6 +764,7 @@ void Dispatcher::dispatch(Device &d)
 	enqueueKernelDevice(d, d.m_kernelIterate, d.m_size);
 #endif
 	enqueueKernelDevice(d, d.m_kernelScore, d.m_size);
+	d.m_memResult.read(false, &event);
 	clFlush(d.m_clQueue);
 #ifdef PROFANITY_DEBUG
 	// We're actually not allowed to call clFinish here because this function is ultimately asynchronously called by OpenCL.
@@ -725,24 +793,12 @@ static void printResult(
 	cl_ulong4 seedRes = seed;
 	if (range.enabled)
 	{
-		seedRes.s[0] = seed.s[0] + round;
-		cl_ulong carry = seedRes.s[0] < round;
-		seedRes.s[1] = seed.s[1] + carry;
-		carry = !seedRes.s[1];
-		seedRes.s[2] = seed.s[2] + carry;
-		carry = !seedRes.s[2];
-		seedRes.s[3] = range.descending ? seed.s[3] + carry - r.foundId : seed.s[3] + carry + r.foundId;
+		seedRes = candidatePrivateForRange(seed, round, r.foundId, range);
 	}
 	else
 	{
-		cl_ulong carry = 0;
-		seedRes.s[0] = seed.s[0] + round;
-		carry = seedRes.s[0] < round;
-		seedRes.s[1] = seed.s[1] + carry;
-		carry = !seedRes.s[1];
-		seedRes.s[2] = seed.s[2] + carry;
-		carry = !seedRes.s[2];
-		seedRes.s[3] = seed.s[3] + carry + r.foundId;
+		seedRes = addScalar64(seedRes, round + 1);
+		seedRes.s[3] += r.foundId;
 	}
 
 	std::ostringstream ss;
@@ -808,7 +864,10 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 	else
 	{
 		++d.m_round;
-		handleResult(d);
+		if (m_benchmarkSeconds == 0)
+		{
+			handleResult(d);
+		}
 		bool bDispatch = true;
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
@@ -824,8 +883,7 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 			}
 			if (!m_quit && m_range.enabled)
 			{
-				const cl_ulong span = d.m_round + d.m_size;
-				if (span >= m_range.counterMax)
+				if (m_range.counterMax > 0 && d.m_round >= m_range.counterMax)
 				{
 					m_quit = true;
 				}
@@ -863,24 +921,11 @@ cl_ulong4 Dispatcher::candidatePrivate(const cl_ulong4 &seed, cl_ulong round, cl
 	cl_ulong4 seedRes = seed;
 	if (m_range.enabled)
 	{
-		seedRes.s[0] = seed.s[0] + round;
-		cl_ulong carry = seedRes.s[0] < round;
-		seedRes.s[1] = seed.s[1] + carry;
-		carry = !seedRes.s[1];
-		seedRes.s[2] = seed.s[2] + carry;
-		carry = !seedRes.s[2];
-		seedRes.s[3] = m_range.descending ? seed.s[3] + carry - foundId : seed.s[3] + carry + foundId;
-		return seedRes;
+		return candidatePrivateForRange(seed, round, foundId, m_range);
 	}
 
-	cl_ulong carry = 0;
-	seedRes.s[0] = seed.s[0] + round;
-	carry = seedRes.s[0] < round;
-	seedRes.s[1] = seed.s[1] + carry;
-	carry = !seedRes.s[1];
-	seedRes.s[2] = seed.s[2] + carry;
-	carry = !seedRes.s[2];
-	seedRes.s[3] = seed.s[3] + carry + foundId;
+	seedRes = addScalar64(seedRes, round + 1);
+	seedRes.s[3] += foundId;
 	return seedRes;
 }
 
@@ -984,6 +1029,7 @@ void Dispatcher::appendResultToFile(const cl_ulong4 &seed, cl_ulong round, const
 	{
 		return;
 	}
+	createParentDirectories(m_resultsPath);
 
 	const cl_ulong4 seedRes = candidatePrivate(seed, round, r.foundId);
 

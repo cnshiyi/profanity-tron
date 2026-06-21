@@ -327,18 +327,23 @@ void profanity_init_seed(__global const point * const precomp, point * const p, 
 	}
 }
 
-__kernel void profanity_init(__global const point * const precomp, __global mp_number * const pDeltaX, __global mp_number * const pPrevLambda, __global result * const pResult, const ulong4 seed, const uchar descending) {
+__kernel void profanity_init(__global const point * const precomp, __global mp_number * const pDeltaX, __global mp_number * const pPrevLambda, __global result * const pResult, const ulong4 seed, const uchar descending, const uchar rangeShift, const uchar rangeLane) {
 	const size_t id = get_global_id(0);
 	point p;
 	bool bIsFirst = true;
 
 	mp_number tmp1, tmp2;
 	point tmp3;
+	const ulong rangeOffset = ((ulong)id) << rangeShift;
+	const ulong seedX = rangeLane == 0 ? (descending ? seed.x - rangeOffset : seed.x + rangeOffset) : seed.x;
+	const ulong seedY = rangeLane == 1 ? (descending ? seed.y - rangeOffset : seed.y + rangeOffset) : seed.y;
+	const ulong seedZ = rangeLane == 2 ? (descending ? seed.z - rangeOffset : seed.z + rangeOffset) : seed.z;
+	const ulong seedW = rangeLane == 3 ? (descending ? seed.w - rangeOffset : seed.w + rangeOffset) : seed.w;
 
-	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 0, seed.x);
-	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 1, seed.y);
-	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 2, seed.z);
-	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 3, descending ? seed.w - id : seed.w + id);
+	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 0, seedX);
+	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 1, seedY);
+	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 2, seedZ);
+	profanity_init_seed(precomp, &p, &bIsFirst, 8 * 255 * 3, seedW);
 
 	mp_mod_sub_gx(&tmp1, &p.x);
 	mp_mod_inverse(&tmp1);
@@ -594,7 +599,7 @@ __kernel void profanity_score_matching(
 	const ulong rangeMax)
 {
 	const size_t id = get_global_id(0);
-	if (rangeEnabled && (ulong)id > rangeMax) {
+	if (rangeEnabled && rangeMax > 0 && (ulong)id > rangeMax) {
 		return;
 	}
 
