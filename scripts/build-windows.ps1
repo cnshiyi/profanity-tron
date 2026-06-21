@@ -1,5 +1,9 @@
 param(
-    [string]$Version = ""
+    [string]$Version = "",
+    [string]$SignThumbprint = "",
+    [string]$SignPfxPath = "",
+    [string]$SignPfxPassword = "",
+    [string]$TimestampUrl = "http://timestamp.digicert.com"
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,6 +60,53 @@ if (-not $csc) {
     throw "Could not find csc.exe."
 }
 
+$signtool = First-ExistingPath @(
+    "$env:ProgramFiles(x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe",
+    "$env:ProgramFiles(x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe",
+    "$env:ProgramFiles(x86)\Windows Kits\10\bin\10.0.22000.0\x64\signtool.exe",
+    "$env:ProgramFiles(x86)\Windows Kits\10\bin\10.0.20348.0\x64\signtool.exe",
+    "$env:ProgramFiles(x86)\Windows Kits\10\bin\x64\signtool.exe"
+)
+
+function Invoke-CodeSign {
+    param([string[]]$Paths)
+
+    $hasThumbprint = -not [string]::IsNullOrWhiteSpace($SignThumbprint)
+    $hasPfx = -not [string]::IsNullOrWhiteSpace($SignPfxPath)
+    if (-not $hasThumbprint -and -not $hasPfx) {
+        Write-Host "Code signing skipped: no certificate configured."
+        return
+    }
+    if (-not $signtool) {
+        throw "Code signing requested, but signtool.exe was not found."
+    }
+    if ($hasPfx -and -not (Test-Path -LiteralPath $SignPfxPath)) {
+        throw "Code signing requested, but PFX file was not found: $SignPfxPath"
+    }
+
+    foreach ($path in $Paths) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            throw "Code signing target not found: $path"
+        }
+
+        $args = @("sign", "/fd", "SHA256", "/tr", $TimestampUrl, "/td", "SHA256")
+        if ($hasPfx) {
+            $args += @("/f", $SignPfxPath)
+            if (-not [string]::IsNullOrWhiteSpace($SignPfxPassword)) {
+                $args += @("/p", $SignPfxPassword)
+            }
+        } else {
+            $args += @("/sha1", $SignThumbprint)
+        }
+        $args += $path
+
+        & $signtool @args
+        if ($LASTEXITCODE -ne 0) {
+            throw "Code signing failed for $path with exit code $LASTEXITCODE."
+        }
+    }
+}
+
 $nativeBuildCmd = Join-Path $buildDir "build-native.cmd"
 @"
 @echo off
@@ -82,6 +133,8 @@ try {
 finally {
     Pop-Location
 }
+
+Invoke-CodeSign -Paths @((Join-Path $distDir "shiyi.exe"), (Join-Path $distDir "start.exe"))
 
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 $defaultTargets = [System.IO.File]::ReadAllText((Join-Path $repoRoot "profanity.txt"), [System.Text.Encoding]::UTF8)

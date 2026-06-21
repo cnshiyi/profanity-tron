@@ -24,10 +24,12 @@
 ### 本地构建
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.9
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.10
 ```
 
-生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.9.zip`。
+如果 Windows Application Control / 企业策略要求签名，可传入 `-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。
+
+生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.10.zip`。
 
 ### 当前验证
 
@@ -63,10 +65,12 @@ This is a Windows / OpenCL Tron vanity address generator. The Windows launcher i
 ### Local Build
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.9
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.10
 ```
 
-Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.9.zip`.
+If Windows Application Control or an enterprise policy requires signing, pass `-SignThumbprint` or `-SignPfxPath/-SignPfxPassword`.
+
+Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.10.zip`.
 
 ### Current Verification
 

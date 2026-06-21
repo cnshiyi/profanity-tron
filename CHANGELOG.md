@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.10 - 2026-06-21
+
+- 中文：构建脚本增加可选 Authenticode 签名参数，支持 `-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。
+- English: Added optional Authenticode signing support to the Windows build script via `-SignThumbprint` or `-SignPfxPath/-SignPfxPassword`.
+- 中文：GitHub Release workflow 支持通过 `WINDOWS_SIGNING_PFX_BASE64` 和 `WINDOWS_SIGNING_PFX_PASSWORD` secrets 导入签名证书；未配置证书时继续无签名构建。
+- English: The GitHub Release workflow can import a signing certificate from `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD` secrets; unsigned builds still work when no certificate is configured.
+- 中文：无证书构建路径已验证，`shiyi.exe --help` 可运行；RTX 3070 样本为随机单目标 351.127 MH/s、后 16 位向上 333.413 MH/s，400 MH/s 目标仍未达成。
+- English: Verified the no-certificate build path and `shiyi.exe --help`; RTX 3070 samples are random single-target 351.127 MH/s and last-16 upward 333.413 MH/s. The 400 MH/s target remains open.
+
 ## v1.0.9 - 2026-06-21
 
 - 中文：修复范围模式只支持私钥前 16 位的问题，现在可支持任意一个 16 位私钥块内的连续 1-16 个十六进制位。

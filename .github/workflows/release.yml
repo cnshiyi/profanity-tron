@@ -20,7 +20,20 @@ jobs:
           
       - name: "Build Windows Package"
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version "${{ github.ref_name }}"
+        env:
+          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          $signArgs = @()
+          if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
+            $pfxPath = Join-Path $env:RUNNER_TEMP "shiyi-signing.pfx"
+            [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
+            $signArgs += @("-SignPfxPath", $pfxPath)
+            if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_PASSWORD)) {
+              $signArgs += @("-SignPfxPassword", $env:WINDOWS_SIGNING_PFX_PASSWORD)
+            }
+          }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version "${{ github.ref_name }}" @signArgs
 
       - name: "List Assets"
         shell: powershell
