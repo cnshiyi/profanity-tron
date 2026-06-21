@@ -1,4 +1,4 @@
-﻿profanity-tron v1.0.20
-Built: 2026-06-21 15:27:32 +08:00
+﻿profanity-tron v1.0.21
+Built: 2026-06-21 18:51:52 +08:00
 Launcher: start.exe
 Generator: shiyi.exe

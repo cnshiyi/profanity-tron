@@ -682,6 +682,7 @@ void Dispatcher::initBegin(Device &d)
 	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 13, suffixMatchIndex);
 	CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 14, m_range.enabled ? 1 : 0);
 	CLMemory<cl_ulong>::setKernelArg(d.m_kernelScore, 15, m_range.counterMax == 0 ? 0 : (m_range.counterMax - 1));
+	CLMemory<cl_ulong>::setKernelArg(d.m_kernelScore, 16, 0);
 	
 	// Seed device
 	initContinue(d);
@@ -768,6 +769,10 @@ void Dispatcher::enqueueKernel(cl_command_queue &clQueue, cl_kernel &clKernel, s
 void Dispatcher::dispatch(Device &d)
 {
 	cl_event event;
+	if (m_range.enabled)
+	{
+		CLMemory<cl_ulong>::setKernelArg(d.m_kernelScore, 16, d.m_round + 2);
+	}
 	d.m_memResult.fillZero32(false);
 #ifdef PROFANITY_DEBUG
 	cl_event eventInverse;
@@ -896,7 +901,7 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 			}
 			if (!m_quit && m_range.enabled)
 			{
-				if (m_range.counterMax > 0 && d.m_round >= m_range.counterMax)
+				if (m_range.counterMax > 0 && d.m_round + 2 >= m_range.counterMax)
 				{
 					m_quit = true;
 				}

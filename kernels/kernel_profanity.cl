@@ -647,10 +647,11 @@ __kernel void profanity_score_matching(
 	const uchar suffixCount,
 	const uchar suffixMatchIndex,
 	const uchar rangeEnabled,
-	const ulong rangeMax)
+	const ulong rangeMax,
+	const ulong rangeRoundOffset)
 {
 	const size_t id = get_global_id(0);
-	if (rangeEnabled && rangeMax > 0 && (ulong)id > rangeMax) {
+	if (rangeEnabled && rangeMax > 0 && ((ulong)id + rangeRoundOffset) > rangeMax) {
 		return;
 	}
 

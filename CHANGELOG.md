@@ -1,5 +1,16 @@
 # Version Record
 
+## v1.0.21 - 2026-06-21
+
+- 中文：修复有限 range 模式的窗口外结果污染；GPU score 阶段现在按当前轮次偏移检查真实候选是否仍在 range 窗口内，避免 `1..f` 这类小窗口继续保存 `10` 之后的私钥。
+- English: Fixed finite range result contamination outside the requested window; the GPU score stage now checks the current round offset before accepting a range candidate, so a small `1..f` window no longer saves keys after `f`.
+- 中文：有限 range 退出条件同步收紧，当前算法可达候选耗尽后更早结束，减少小窗口空转和测试进程残留风险。
+- English: Tightened finite range exit conditions so the current reachable candidate window ends earlier, reducing small-window idle loops and process-cleanup risk during tests.
+- 中文：新增 `scripts/test-range-runtime.ps1`，自动验证小窗口不会越界，并验证全 0 初始私钥、后 16 位向上、目标后 8 位仍命中 `...2fcf6a3`。
+- English: Added `scripts/test-range-runtime.ps1` to verify bounded small-window output and the known all-zero last-16 upward suffix-8 hit at private key `...2fcf6a3`.
+- 中文：本版本不声明 400 MH/s 已达成；range 仍沿用当前 `+G` 迭代路径，完整去重/不漏扫优化继续作为后续性能任务。
+- English: This release does not claim the 400 MH/s target; range mode still uses the current `+G` iterator path, and complete non-duplicate/non-skipping range traversal remains a follow-up performance task.
+
 ## v1.0.20 - 2026-06-21
 
 - 中文：修复 `scripts/benchmark-local.ps1` 的验证污染问题；脚本不再默认杀掉同目录已有 `shiyi`/`profanity*` 进程，发现已有进程时返回结构化 `RUNNING` 结果，只有显式传入 `-StopExisting` 才会清理。
