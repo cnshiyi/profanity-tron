@@ -24,6 +24,7 @@
 - `scripts/test-range-planner.ps1` 通过。
 - `scripts/test-range-runtime.ps1` 通过。
 - 构建通过：`dist/shiyi-v1.0.22.zip`。
+- 线上发布资产 SHA256：`F54C40E381D42145AD9714BBA322F73753DD7EDFF9B33B859A2AB407FFAFBE5E`。
 - 随机后 8 位 60 秒：`352.092 MH/s`。
 - 全 0 初始私钥、后 16 位向上 range 60 秒：`7.001 H/s`，这是修正重复覆盖计数后的真实新增覆盖速度。
 
@@ -55,6 +56,7 @@
 - `scripts/test-range-planner.ps1` passed.
 - `scripts/test-range-runtime.ps1` passed.
 - Build passed: `dist/shiyi-v1.0.22.zip`.
+- Online release asset SHA256: `F54C40E381D42145AD9714BBA322F73753DD7EDFF9B33B859A2AB407FFAFBE5E`.
 - Random last-8, 60 seconds: `352.092 MH/s`.
 - All-zero initial key, last-16 upward range, 60 seconds: `7.001 H/s` under the corrected newly-covered-candidate metric.
 
