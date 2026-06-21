@@ -455,12 +455,12 @@ void profanity_result_update(
 	__global result * const pResult, 
 	const uchar scoreMax) 
 {
-	uchar score = scoreMax + 1;
-	uchar hasResult = atomic_inc(&pResult[score].found); 
-	if (hasResult == 0) {
-		pResult[score].foundId = id;
+	uint slot = atomic_inc(&pResult[0].found) + 1;
+	if (slot <= PROFANITY_MAX_SCORE) {
+		pResult[slot].found = 1;
+		pResult[slot].foundId = id;
 		for (int i = 0; i < 20; ++i) {
-			pResult[score].foundHash[i] = hash[i];
+			pResult[slot].foundHash[i] = hash[i];
 		}
 	}
 }

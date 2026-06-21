@@ -31,13 +31,7 @@ if (-not [string]::IsNullOrWhiteSpace($ArgumentLine)) {
     $Arguments = $ArgumentLine -split '\s+' | Where-Object { $_.Length -gt 0 }
 }
 
-$startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-$startInfo.FileName = $resolvedExe
-$startInfo.WorkingDirectory = $exeDir
-$startInfo.UseShellExecute = $false
-$startInfo.RedirectStandardOutput = $true
-$startInfo.RedirectStandardError = $true
-$startInfo.Arguments = ($Arguments | ForEach-Object {
+$argumentText = ($Arguments | ForEach-Object {
     if ($_ -match '[\s"]') {
         '"' + ($_ -replace '"', '\"') + '"'
     } else {
@@ -45,11 +39,22 @@ $startInfo.Arguments = ($Arguments | ForEach-Object {
     }
 }) -join ' '
 
-$process = [System.Diagnostics.Process]::new()
-$process.StartInfo = $startInfo
 try {
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $resolvedExe
+    $startInfo.WorkingDirectory = $exeDir
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.Arguments = $argumentText
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
     [void]$process.Start()
-} catch [System.ComponentModel.Win32Exception] {
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+} catch {
     $message = $_.Exception.Message
     Set-Content -LiteralPath $stdoutPath -Value "" -Encoding UTF8
     Set-Content -LiteralPath $stderrPath -Value $message -Encoding UTF8
@@ -66,11 +71,23 @@ try {
 
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
     Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-    throw "Benchmark '$Name' timed out after $TimeoutSeconds seconds."
+    [void]$process.WaitForExit(5000)
+    Set-Content -LiteralPath $stdoutPath -Value $stdoutTask.Result -Encoding UTF8
+    Set-Content -LiteralPath $stderrPath -Value $stderrTask.Result -Encoding UTF8
+    [pscustomobject]@{
+        Name = $Name
+        ExitCode = "TIMEOUT"
+        Speed = ""
+        Stdout = $stdoutPath
+        Stderr = $stderrPath
+        Error = "Timed out after $TimeoutSeconds seconds."
+    }
+    return
 }
 
-$stdout = $process.StandardOutput.ReadToEnd()
-$stderr = $process.StandardError.ReadToEnd()
+$process.WaitForExit()
+$stdout = $stdoutTask.Result
+$stderr = $stderrTask.Result
 Set-Content -LiteralPath $stdoutPath -Value $stdout -Encoding UTF8
 Set-Content -LiteralPath $stderrPath -Value $stderr -Encoding UTF8
 $exitCode = $process.ExitCode

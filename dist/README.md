@@ -15,9 +15,10 @@
 ### 提示
 
 - 目标地址每行一个，保存时会自动清理空行和隐藏 BOM 字符。
+- 默认目标为 `1-9 + A` 的 10 行集合；TRON/Base58 地址不包含 `0`。
 - 指定位数模式限制为 1-16 个十六进制位；留空则使用随机模式。
 - 全 0 初始私钥会自动跳过无效私钥 `0`。
-- 当前包已移除旧的静态 curl/网络链接依赖；如企业策略要求签名，请使用签名证书构建发布包。
+- 当前包已移除旧的静态 curl/网络链接依赖；如 Smart App Control / 企业策略要求签名，请使用签名证书构建发布包。
 
 ## English
 
@@ -34,6 +35,7 @@ Run `start.exe` to open the Windows launcher. The native generator is `shiyi.exe
 ### Notes
 
 - Targets are one per line. Blank lines and hidden BOM characters are cleaned automatically when saving.
+- The default target set is `1-9 + A`; TRON/Base58 addresses do not contain `0`.
 - Fixed-digit mode is limited to 1-16 hex digits. Leave it blank for random mode.
 - An all-zero initial private key automatically skips invalid private key `0`.
-- Obsolete static curl/network link dependencies were removed; if an enterprise policy requires signing, build the package with a code-signing certificate.
+- Obsolete static curl/network link dependencies were removed; if Smart App Control or an enterprise policy requires signing, build the package with a code-signing certificate.

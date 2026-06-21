@@ -54,6 +54,20 @@ template<typename T> class CLMemory {
 			}
 		}
 
+		void fillZero32(const bool bBlock) const {
+			const cl_uint zero = 0;
+			auto res = clEnqueueFillBuffer(m_clQueue, m_clMem, &zero, sizeof(zero), 0, m_size, 0, NULL, NULL);
+			if (res != CL_SUCCESS) {
+				throw std::runtime_error("clEnqueueFillBuffer failed - " + toString(res));
+			}
+			if (bBlock) {
+				res = clFinish(m_clQueue);
+				if (res != CL_SUCCESS) {
+					throw std::runtime_error("clFinish failed after clEnqueueFillBuffer - " + toString(res));
+				}
+			}
+		}
+
 		T * const & data() const {
 			return m_pData;
 		}

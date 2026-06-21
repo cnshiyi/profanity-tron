@@ -349,7 +349,7 @@ Dispatcher::Dispatcher(cl_context &clContext,
 					   const size_t worksizeMax,
 					   const size_t inverseSize,
 					   const size_t inverseMultiple,
-					   const cl_uchar clScoreQuit,
+					   const size_t quitCount,
 					   const size_t benchmarkSeconds,
 					   const std::string &resultsPath,
 					   const SearchRange &range)
@@ -360,7 +360,7 @@ Dispatcher::Dispatcher(cl_context &clContext,
 	  m_inverseSize(inverseSize),
 	  m_size(inverseSize * inverseMultiple),
 	  m_clScoreMax(mode.score),
-	  m_clScoreQuit(clScoreQuit),
+	  m_quitCount(quitCount),
 	  m_benchmarkSeconds(benchmarkSeconds),
 	  m_resultsPath(resultsPath),
 	  m_range(range),
@@ -768,6 +768,7 @@ void Dispatcher::enqueueKernel(cl_command_queue &clQueue, cl_kernel &clKernel, s
 void Dispatcher::dispatch(Device &d)
 {
 	cl_event event;
+	d.m_memResult.fillZero32(false);
 #ifdef PROFANITY_DEBUG
 	cl_event eventInverse;
 	cl_event eventIterate;
@@ -834,34 +835,27 @@ static void printResult(
 
 void Dispatcher::handleResult(Device &d)
 {
-	for (auto i = PROFANITY_MAX_SCORE; i > m_clScoreMax; --i)
+	const cl_uint foundCount = d.m_memResult[0].found;
+	if (foundCount == 0)
 	{
-		result &r = d.m_memResult[i];
+		return;
+	}
 
-		if (r.found > 0 && i >= d.m_clScoreMax)
+	const cl_uint limit = (std::min)(foundCount, static_cast<cl_uint>(PROFANITY_MAX_SCORE));
+	for (cl_uint slot = 1; slot <= limit; ++slot)
+	{
+		result &r = d.m_memResult[slot];
+		if (r.found == 0)
 		{
-			d.m_clScoreMax = i;
-			CLMemory<cl_uchar>::setKernelArg(d.m_kernelScore, 9, d.m_clScoreMax);
+			continue;
+		}
 
-			std::lock_guard<std::mutex> lock(m_mutex);
-			if (i >= m_clScoreMax)
-			{
-
-				m_clScoreMax = i;
-
-				if ((m_clScoreQuit && i >= m_clScoreQuit) || m_clScoreMax >= PROFANITY_MAX_SCORE)
-				{
-					m_quit = true;
-				}
-
-				if (m_benchmarkSeconds == 0)
-				{
-					enqueueResult(d, r, i);
-				}
-			}
-
+		std::lock_guard<std::mutex> lock(m_mutex);
+		if (m_quit || m_benchmarkSeconds != 0)
+		{
 			break;
 		}
+		enqueueResult(d, r, static_cast<cl_uchar>(slot));
 	}
 }
 
@@ -941,6 +935,15 @@ cl_ulong4 Dispatcher::candidatePrivate(const cl_ulong4 &seed, cl_ulong round, cl
 	seedRes = addScalar64(seedRes, round + 1);
 	seedRes.s[3] += foundId;
 	return seedRes;
+}
+
+std::string Dispatcher::candidatePrivateHex(const cl_ulong4 &seed, cl_ulong round, cl_uint foundId) const
+{
+	const cl_ulong4 seedRes = candidatePrivate(seed, round, foundId);
+	std::ostringstream ss;
+	ss << std::hex << std::setfill('0');
+	ss << std::setw(16) << seedRes.s[3] << std::setw(16) << seedRes.s[2] << std::setw(16) << seedRes.s[1] << std::setw(16) << seedRes.s[0];
+	return ss.str();
 }
 
 bool Dispatcher::validateResult(const result &r) const
@@ -1027,9 +1030,23 @@ void Dispatcher::processResultQueue()
 		const cl_uchar score = std::get<3>(item);
 		if (validateResult(r))
 		{
+			const std::string privateHex = candidatePrivateHex(seed, round, r.foundId);
 			{
 				std::lock_guard<std::mutex> lock(m_mutex);
+				if (!m_seenResultPrivates.insert(privateHex).second)
+				{
+					continue;
+				}
+				if (m_quitCount > 0 && m_resultsValidated >= m_quitCount)
+				{
+					m_quit = true;
+					continue;
+				}
 				++m_resultsValidated;
+				if (m_quitCount > 0 && m_resultsValidated >= m_quitCount)
+				{
+					m_quit = true;
+				}
 			}
 			printResult(seed, round, r, score, timeStart, m_mode, m_range);
 			appendResultToFile(seed, round, r, score);

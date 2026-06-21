@@ -1,5 +1,22 @@
 # Version Record
 
+## v1.0.15 - 2026-06-21
+
+- 中文：修复默认目标地址，移除 TRON/Base58 地址不支持的 `0` 目标，改为 `1-9 + A` 的 10 行默认目标；源码、`dist/profanity.txt` 和 `dist/runtime/targets.txt` 已保持一致。
+- English: Fixed the default targets by removing the `0` target that TRON/Base58 addresses cannot contain, replacing the default 10-line set with `1-9 + A`; source, `dist/profanity.txt`, and `dist/runtime/targets.txt` now match.
+- 中文：修复命中结果重复计数：GPU 结果缓冲每轮清空，单批最多回传 120 个命中槽，CPU 按私钥去重后再统计 `--quit-count` 和保存结果。
+- English: Fixed duplicate hit counting: the GPU result buffer is cleared every round, each batch can return up to 120 hit slots, and the CPU deduplicates by private key before counting `--quit-count` and saving hits.
+- 中文：`--quit-count` 现在按“唯一验证命中条数”退出，不再误用为 GPU 分数阈值；默认数量 999 不会再因 `cl_uchar` 溢出而变成错误阈值。
+- English: `--quit-count` now exits by unique validated hit count instead of being misused as a GPU score threshold; the default count of 999 no longer overflows a `cl_uchar` into a wrong threshold.
+- 中文：修复 `scripts/benchmark-local.ps1` 的超时路径；现在 benchmark 超时也会保存 stdout/stderr，并返回结构化 `TIMEOUT` 结果，便于定位长跑卡住位置。
+- English: Fixed the timeout path in `scripts/benchmark-local.ps1`; timed-out benchmark runs now preserve stdout/stderr and return a structured `TIMEOUT` result for diagnosing long-run stalls.
+- 中文：本地新编译 `shiyi.exe` 被 Smart App Control / Code Integrity 策略拦截，日志显示未满足企业签名级别要求；因此本轮无法在本机完成 1 分钟性能实测，400 MH/s 目标不作达成声明。
+- English: The freshly local-built `shiyi.exe` was blocked by Smart App Control / Code Integrity because it did not meet the enterprise signing level; therefore this round could not complete local 1-minute performance verification and does not claim the 400 MH/s target.
+- 中文：本轮拒绝两个 kernel 实验：拆分模乘归约分支降至 310.538 MH/s，`modHigher` 常量区实验为 357.988 MH/s，均不发布为性能优化。
+- English: Rejected two kernel experiments this round: splitting the modular-multiply reduction branch dropped to 310.538 MH/s, and the `modHigher` constant-memory experiment measured 357.988 MH/s; neither is shipped as a performance optimization.
+- 中文：官方 v1.0.14 发布包 20 秒基线仍作为参考：随机后 8 位为 357.353 MH/s，全 0 初始私钥后 16 位向上为 356.712 MH/s。
+- English: The official v1.0.14 package 20-second baselines remain reference data: random last-8 reached 357.353 MH/s, and all-zero last-16 upward range reached 356.712 MH/s.
+
 ## v1.0.14 - 2026-06-21
 
 - 中文：为手动 `--inverse-multiple` 增加 60% GPU 显存预算校验，避免输入过大批量导致初始化阶段异常退出。
@@ -60,10 +77,10 @@
 
 ## v1.0.8 - 2026-06-21
 
-- 中文：修正默认目标地址列表，将误写入的 `[银行卡]` 占位文本恢复为 0 到 9 各一行的真实目标。
-- English: Corrected the default target list by replacing the accidental `[银行卡]` placeholder text with the real 0-9 target lines.
-- 中文：启动器读取旧 `runtime/targets.txt` 时，如果检测到 `[银行卡]` 旧内容，会自动回退到新的 0-9 默认目标。
-- English: The launcher now falls back to the corrected 0-9 defaults when an old `runtime/targets.txt` still contains `[银行卡]`.
+- 中文：修正默认目标地址列表，将误写入的旧占位文本恢复为数字目标。
+- English: Corrected the default target list by replacing the accidental legacy placeholder text with digit target lines.
+- 中文：启动器读取旧 `runtime/targets.txt` 时，如果检测到旧占位内容，会自动回退到新的默认目标。
+- English: The launcher now falls back to the corrected defaults when an old `runtime/targets.txt` still contains legacy placeholder content.
 - 中文：本版本不发布未验证的性能参数调整；随机/default 模式 400 MH/s 目标继续迭代。
 - English: This release does not ship the unverified performance parameter experiment; the 400 MH/s target for random/default modes remains active.
 

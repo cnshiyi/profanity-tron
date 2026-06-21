@@ -10,6 +10,7 @@
 #include <thread>
 #include <tuple>
 #include <condition_variable>
+#include <set>
 
 #if defined(__APPLE__) || defined(__MACOSX)
 #include <OpenCL/cl.h>
@@ -108,7 +109,7 @@ class Dispatcher {
 		};
 
 	public:
-		Dispatcher(cl_context & clContext, cl_program & clProgram, const Mode mode, const size_t worksizeMax, const size_t inverseSize, const size_t inverseMultiple, const cl_uchar clScoreQuit = 0, const size_t benchmarkSeconds = 0, const std::string & resultsPath = std::string(), const SearchRange & range = SearchRange());
+		Dispatcher(cl_context & clContext, cl_program & clProgram, const Mode mode, const size_t worksizeMax, const size_t inverseSize, const size_t inverseMultiple, const size_t quitCount = 0, const size_t benchmarkSeconds = 0, const std::string & resultsPath = std::string(), const SearchRange & range = SearchRange());
 		~Dispatcher();
 
 		void addDevice(cl_device_id clDeviceId, const size_t worksizeLocal, const size_t index, const std::string & label = std::string(), const size_t deviceInverseMultiple = 0);
@@ -130,6 +131,7 @@ class Dispatcher {
 		void appendResultToFile(const cl_ulong4 & seed, cl_ulong round, const result & r, cl_uchar score);
 		void prepareRangeDevice(Device & d);
 		cl_ulong4 candidatePrivate(const cl_ulong4 & seed, cl_ulong round, cl_uint foundId) const;
+		std::string candidatePrivateHex(const cl_ulong4 & seed, cl_ulong round, cl_uint foundId) const;
 
 		void onEvent(cl_event event, cl_int status, Device & d);
 
@@ -148,12 +150,13 @@ class Dispatcher {
 		const size_t m_inverseSize;
 		const size_t m_size;
 		cl_uchar m_clScoreMax;
-		cl_uchar m_clScoreQuit;
+		size_t m_quitCount;
 		const size_t m_benchmarkSeconds;
 		const std::string m_resultsPath;
 		const SearchRange m_range;
 		size_t m_resultsValidated;
 		size_t m_resultsSaved;
+		std::set<std::string> m_seenResultPrivates;
 		std::vector<Device *> m_vDevices;
 
 		cl_event m_eventFinished;
