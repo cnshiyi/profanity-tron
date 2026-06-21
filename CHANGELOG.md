@@ -10,6 +10,8 @@
 - English: `scripts/test-range-planner.ps1` now prevents regressing to `round * stride` private-key reconstruction unless the OpenCL iterator step is changed consistently.
 - 中文：v1.0.19 构建和包内容校验通过；本机新版本运行仍被 Application Control 策略拦截，因此不声明 1 分钟性能结果。
 - English: v1.0.19 builds and package checks pass; local execution of the new binary is still blocked by Application Control, so no 1-minute performance result is claimed.
+- 中文：补充验证：GitHub Actions 上传的 v1.0.19 线上包可运行；当前 RTX 3070 状态下随机后 8 位 60 秒为 332.368 MH/s，后 16 位向上 range 为 331.813 MH/s；同机 v1.0.15 复跑为 331.715 MH/s，说明当前低速更像环境状态而非 v1.0.19 回退。
+- English: Added verification: the GitHub Actions uploaded v1.0.19 asset can run; in the current RTX 3070 state, random last-8 reached 332.368 MH/s and last-16 upward range reached 331.813 MH/s, while the same-machine v1.0.15 rerun reached 331.715 MH/s, indicating the current low speed is likely environment state rather than a v1.0.19 regression.
 
 ## v1.0.18 - 2026-06-21
 
