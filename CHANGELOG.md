@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.11 - 2026-06-21
+
+- 中文：根据 RTX 3070 串行矩阵测试，将 64 CU 以下 NVIDIA 默认 work 调为 32，并将该档 inverse-multiple 调为 196608。
+- English: Based on RTX 3070 serial matrix tests, changed the default NVIDIA work size below 64 compute units to 32 and the tier inverse-multiple to 196608.
+- 中文：v1.0.11 正式构建后默认参数复测结果为随机单目标 338.415 MH/s、全 0 后 16 位向上 338.758 MH/s，默认输出确认为 `work = 32`、`inverse-multiple = 196608`。
+- English: After the official v1.0.11 build, default-parameter retests measured 338.415 MH/s for random single-target and 338.758 MH/s for all-zero last-16 upward; default output confirms `work = 32` and `inverse-multiple = 196608`.
+- 中文：构建与测试后未发现残留 `shiyi`、旧 `profanity*`、`TronStudio` 或 `start` 进程；400 MH/s 目标仍未达成。
+- English: No leftover `shiyi`, old `profanity*`, `TronStudio`, or `start` processes were found after build and tests; the 400 MH/s target remains open.
+
 ## v1.0.10 - 2026-06-21
 
 - 中文：构建脚本增加可选 Authenticode 签名参数，支持 `-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。

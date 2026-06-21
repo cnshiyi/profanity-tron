@@ -643,7 +643,7 @@ void autoTuneForDevices(
 
 		if (isNvidia)
 		{
-			candidateWorksizeLocal = 64;
+			candidateWorksizeLocal = computeUnits >= 64 ? 64 : 32;
 		}
 		else if (isIntel)
 		{
@@ -671,10 +671,10 @@ void autoTuneForDevices(
 		if (!userSetInverseMultiple && isNvidia)
 		{
 			const cl_ulong perKeyBytes = 96;
-			const cl_ulong memoryBudget = globalMemSize * 45 / 100;
+			const cl_ulong memoryBudget = globalMemSize * 60 / 100;
 			const cl_ulong maxByMemory = inverseSize == 0 ? 0 : memoryBudget / (perKeyBytes * inverseSize);
 			size_t memoryBucket = 32768;
-			const size_t buckets[] = { 32768, 65536, 131072, 262144, 393216, 524288 };
+			const size_t buckets[] = { 32768, 65536, 131072, 196608, 262144, 393216, 524288 };
 			for (const size_t bucket : buckets)
 			{
 				if (maxByMemory >= bucket)
@@ -683,7 +683,7 @@ void autoTuneForDevices(
 				}
 			}
 
-			size_t computeBucket = 131072;
+			size_t computeBucket = 196608;
 			if (computeUnits >= 128)
 			{
 				computeBucket = 524288;

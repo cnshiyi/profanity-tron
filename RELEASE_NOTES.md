@@ -1,4 +1,4 @@
-# v1.0.10
+# v1.0.11
 
 ## 中文
 
@@ -6,7 +6,7 @@
 
 - Windows 图形启动器：`start.exe`
 - 原生 OpenCL 生成器：`shiyi.exe`
-- 发布资产文件：`shiyi-v1.0.10.zip`
+- 发布资产文件：`shiyi-v1.0.11.zip`
 - 运行时 OpenCL 内核：`kernels/*.cl`
 - 默认目标文件：`profanity.txt` 和 `runtime/targets.txt`
 - 启动辅助脚本：`start.bat`
@@ -14,27 +14,24 @@
 
 ### 本次更新
 
-- 构建脚本增加可选 Authenticode 签名参数：`-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。
-- GitHub Release workflow 支持通过 `WINDOWS_SIGNING_PFX_BASE64` 和 `WINDOWS_SIGNING_PFX_PASSWORD` secrets 导入签名证书。
-- 未配置证书时仍可正常无签名构建，并会明确打印 `Code signing skipped`。
-- 保留 v1.0.9 的后 16 位范围修复、全 0 私钥跳过、私钥回写修复和 NVIDIA 自适应调参。
+- 根据 RTX 3070 串行矩阵测试，将 64 CU 以下 NVIDIA 默认 `work` 调为 `32`。
+- 将 64 CU 以下 NVIDIA 档位的默认 `inverse-multiple` 调为 `196608`。
+- 64 CU 及以上 NVIDIA 显卡仍保留更高计算单元分档，避免把更高端显卡固定成 RTX 3070 参数。
+- 保留 v1.0.10 的可选代码签名构建通道。
 
 ### 验证
 
-- 无证书构建：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.10-test`，退出码 0。
-- 构建日志确认未配置证书时跳过签名：`Code signing skipped: no certificate configured.`
-- `Get-AuthenticodeSignature` 确认本地测试构建的 `shiyi.exe` 和 `start.exe` 为 `NotSigned`。
-- `shiyi.exe --help` 正常运行。
+- 参数矩阵测试均串行运行，避免 benchmark 脚本互相清理进程造成假结果。
+- `v1.0.11` 正式构建成功并生成 `shiyi-v1.0.11.zip`。
+- 默认调参输出确认：`work = 32`，`inverse-multiple = 196608`，`work-max = 50135040`。
+- 正式构建后默认参数复测：
+  - 随机单目标 6 秒：338.415 MH/s
+  - 全 0 初始私钥、后 16 位向上、后 8 位地址测试 6 秒：338.758 MH/s
 - 构建和测试后未发现残留 `shiyi`、旧 `profanity*`、`TronStudio` 或 `start` 进程。
 
 ### 性能状态
 
-RTX 3070 当前可信样本：
-
-- 随机单目标 3 秒：351.127 MH/s
-- 全 0 初始私钥、后 16 位向上、后 8 位地址测试 3 秒：333.413 MH/s
-
-400 MH/s 目标尚未达成。本版本主要补齐签名构建通道，便于后续在 Application Control / 企业策略环境中稳定运行和测速。
+400 MH/s 目标尚未达成。本版本是一次可回溯的默认参数小幅提升；下一轮仍需继续做 GPU 粗筛、CPU 细筛或更深的内核路径优化。
 
 ## English
 
@@ -42,7 +39,7 @@ RTX 3070 当前可信样本：
 
 - Windows launcher: `start.exe`
 - Native OpenCL generator: `shiyi.exe`
-- Release asset file: `shiyi-v1.0.10.zip`
+- Release asset file: `shiyi-v1.0.11.zip`
 - Runtime OpenCL kernels: `kernels/*.cl`
 - Default target files: `profanity.txt` and `runtime/targets.txt`
 - Launcher helper: `start.bat`
@@ -50,24 +47,21 @@ RTX 3070 当前可信样本：
 
 ### Changes
 
-- Added optional Authenticode signing parameters to the Windows build script: `-SignThumbprint` or `-SignPfxPath/-SignPfxPassword`.
-- The GitHub Release workflow can import a signing certificate from `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD` secrets.
-- Builds still work unsigned when no certificate is configured, and clearly print `Code signing skipped`.
-- Keeps the v1.0.9 last-16 range fix, zero-key skip, private-key reporting fix, and NVIDIA adaptive tuning.
+- Based on RTX 3070 serial matrix tests, changed default NVIDIA `work` below 64 compute units to `32`.
+- Changed the same NVIDIA tier default `inverse-multiple` to `196608`.
+- NVIDIA GPUs with 64 or more compute units still keep higher compute-unit tiers, so higher-end cards are not pinned to RTX 3070-class parameters.
+- Keeps the optional code-signing build path from v1.0.10.
 
 ### Verification
 
-- No-certificate build: `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.10-test`, exit code 0.
-- Build log confirms unsigned fallback: `Code signing skipped: no certificate configured.`
-- `Get-AuthenticodeSignature` confirms the local test `shiyi.exe` and `start.exe` are `NotSigned`.
-- `shiyi.exe --help` runs successfully.
+- Parameter matrix tests were run serially to avoid false results from benchmark process cleanup.
+- The official `v1.0.11` build succeeded and produced `shiyi-v1.0.11.zip`.
+- Default tuning output confirms `work = 32`, `inverse-multiple = 196608`, and `work-max = 50135040`.
+- Official-build default-parameter retests:
+  - Random single-target, 6 seconds: 338.415 MH/s
+  - All-zero initial key, last-16 upward, address last-8 test, 6 seconds: 338.758 MH/s
 - No leftover `shiyi`, old `profanity*`, `TronStudio`, or `start` processes were found after build and tests.
 
 ### Performance Status
 
-Current trusted RTX 3070 samples:
-
-- Random single-target, 3 seconds: 351.127 MH/s
-- All-zero initial key, last-16 upward, address last-8 test, 3 seconds: 333.413 MH/s
-
-The 400 MH/s target has not been reached yet. This version focuses on the signing build path so future runs and benchmarks are more stable under Application Control or enterprise policy.
+The 400 MH/s target has not been reached yet. This version is a small, traceable default-parameter improvement; the next pass still needs GPU coarse filtering, CPU fine filtering, or deeper kernel-path optimization.
