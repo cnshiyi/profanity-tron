@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.12 - 2026-06-21
+
+- 中文：单目标后缀 3-12 位匹配增加后 2 位 GPU 粗筛；绝大多数候选在算完整 Base58 尾部前提前返回。
+- English: Added a last-2-character GPU coarse filter for single-target suffix matching from 3 to 12 chars, so most candidates return before computing the full Base58 tail.
+- 中文：RTX 3070 同口径 10 秒测试中，随机后 8 位从 338.995 MH/s 提升到 354.943 MH/s，固定后 16 位向上达到 357.349 MH/s；正确性命中私钥仍为 `...0000000002fcf6a3`。
+- English: In same-method 10-second RTX 3070 tests, random last-8 improved from 338.995 MH/s to 354.943 MH/s, and last-16 upward range mode reached 357.349 MH/s; the correctness hit still reports private key `...0000000002fcf6a3`.
+- 中文：`--inverse-size` 扫描未突破当前上限；400 MH/s 目标仍未达成，下一轮需继续优化 inverse/iterate 主内核。
+- English: The `--inverse-size` scan did not break through the current ceiling; the 400 MH/s target remains open and the next pass needs deeper inverse/iterate kernel optimization.
+
 ## v1.0.11 - 2026-06-21
 
 - 中文：根据 RTX 3070 串行矩阵测试，将 64 CU 以下 NVIDIA 默认 work 调为 32，并将该档 inverse-multiple 调为 196608。

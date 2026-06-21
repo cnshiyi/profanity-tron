@@ -580,6 +580,57 @@ bool base58_tail_match_n(
 	return base58_tail_match_data(tailIndices, data1, data2, 0, tailCount);
 }
 
+bool base58_tail_match_n_coarse2(
+	__global const uchar *ethhash,
+	__constant const uchar * const data1,
+	__constant const uchar * const data2,
+	const uint tailCount)
+{
+	uint checksumFirstWord;
+	const uint mod3364 = tronhash_mod_3364_from_ethhash(ethhash, &checksumFirstWord);
+	const uchar tail0 = (uchar)(mod3364 % 58u);
+	const uchar tail1 = (uchar)((mod3364 / 58u) % 58u);
+
+	const uchar mask0 = data1[19];
+	const uchar mask1 = data1[18];
+	if (mask0 == 0 || (alphabet[tail0] & mask0) != data2[19])
+	{
+		return false;
+	}
+	if (mask1 == 0 || (alphabet[tail1] & mask1) != data2[18])
+	{
+		return false;
+	}
+
+	uchar tron_hash[25];
+	tron_hash[0] = 65;
+#pragma unroll
+	for (uint i = 0; i < 20; ++i)
+	{
+		tron_hash[i + 1] = ethhash[i];
+	}
+	tron_hash[21] = (checksumFirstWord >> 24) & 0xffu;
+	tron_hash[22] = (checksumFirstWord >> 16) & 0xffu;
+	tron_hash[23] = (checksumFirstWord >> 8) & 0xffu;
+	tron_hash[24] = checksumFirstWord & 0xffu;
+
+	base58_next_tail_index(tron_hash);
+	base58_next_tail_index(tron_hash);
+
+	for (uint step = 2; step < tailCount; ++step)
+	{
+		const uchar tailIndex = base58_next_tail_index(tron_hash);
+		const uint expectedIndex = 19u - step;
+		const uchar mask = data1[expectedIndex];
+		if (mask == 0 || (alphabet[tailIndex] & mask) != data2[expectedIndex])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 __kernel void profanity_score_matching(
 	__global mp_number * const pInverse, 
 	__global result * const pResult, 
@@ -721,16 +772,16 @@ __kernel void profanity_score_matching(
 		bool matched = false;
 		switch (suffixCount)
 		{
-		case 3: matched = base58_tail_match_n(hash, data1, data2, 3); break;
-		case 4: matched = base58_tail_match_n(hash, data1, data2, 4); break;
-		case 5: matched = base58_tail_match_n(hash, data1, data2, 5); break;
-		case 6: matched = base58_tail_match_n(hash, data1, data2, 6); break;
-		case 7: matched = base58_tail_match_n(hash, data1, data2, 7); break;
-		case 8: matched = base58_tail_match_n(hash, data1, data2, 8); break;
-		case 9: matched = base58_tail_match_n(hash, data1, data2, 9); break;
-		case 10: matched = base58_tail_match_n(hash, data1, data2, 10); break;
-		case 11: matched = base58_tail_match_n(hash, data1, data2, 11); break;
-		case 12: matched = base58_tail_match_n(hash, data1, data2, 12); break;
+		case 3: matched = base58_tail_match_n_coarse2(hash, data1, data2, 3); break;
+		case 4: matched = base58_tail_match_n_coarse2(hash, data1, data2, 4); break;
+		case 5: matched = base58_tail_match_n_coarse2(hash, data1, data2, 5); break;
+		case 6: matched = base58_tail_match_n_coarse2(hash, data1, data2, 6); break;
+		case 7: matched = base58_tail_match_n_coarse2(hash, data1, data2, 7); break;
+		case 8: matched = base58_tail_match_n_coarse2(hash, data1, data2, 8); break;
+		case 9: matched = base58_tail_match_n_coarse2(hash, data1, data2, 9); break;
+		case 10: matched = base58_tail_match_n_coarse2(hash, data1, data2, 10); break;
+		case 11: matched = base58_tail_match_n_coarse2(hash, data1, data2, 11); break;
+		case 12: matched = base58_tail_match_n_coarse2(hash, data1, data2, 12); break;
 		default: break;
 		}
 		if (matched)
