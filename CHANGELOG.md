@@ -12,6 +12,8 @@
 - English: v1.0.19 builds and package checks pass; local execution of the new binary is still blocked by Application Control, so no 1-minute performance result is claimed.
 - 中文：补充验证：GitHub Actions 上传的 v1.0.19 线上包可运行；当前 RTX 3070 状态下随机后 8 位 60 秒为 332.368 MH/s，后 16 位向上 range 为 331.813 MH/s；同机 v1.0.15 复跑为 331.715 MH/s，说明当前低速更像环境状态而非 v1.0.19 回退。
 - English: Added verification: the GitHub Actions uploaded v1.0.19 asset can run; in the current RTX 3070 state, random last-8 reached 332.368 MH/s and last-16 upward range reached 331.813 MH/s, while the same-machine v1.0.15 rerun reached 331.715 MH/s, indicating the current low speed is likely environment state rather than a v1.0.19 regression.
+- 中文：补充 GPU 运行采样和参数扫描：运行中 GPU 利用率 97-98%、功耗约 226-228 W，`--work 32 --inverse-multiple 196608` 仍为当前最佳测试组合。
+- English: Added GPU runtime sampling and parameter scans: GPU utilization reached 97-98% with about 226-228 W power draw, and `--work 32 --inverse-multiple 196608` remains the best tested parameter set.
 
 ## v1.0.18 - 2026-06-21
 
