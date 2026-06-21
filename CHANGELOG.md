@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.20 - 2026-06-21
+
+- 中文：修复 `scripts/benchmark-local.ps1` 的验证污染问题；脚本不再默认杀掉同目录已有 `shiyi`/`profanity*` 进程，发现已有进程时返回结构化 `RUNNING` 结果，只有显式传入 `-StopExisting` 才会清理。
+- English: Fixed benchmark evidence contamination in `scripts/benchmark-local.ps1`; it no longer kills existing `shiyi`/`profanity*` processes in the same directory by default, returns a structured `RUNNING` result when a process is active, and only cleans up when `-StopExisting` is explicitly passed.
+- 中文：记录并回退三条无稳定收益的优化实验：Keccak state 初始化捷径、单目标后 4 位 Base58 粗筛、`iterate+score` fused kernel；这些路径不进入发布代码，避免后续重复造轮子。
+- English: Recorded and reverted three experiments without stable gains: Keccak state initialization shortcut, single-target last-4 Base58 coarse filter, and the `iterate+score` fused kernel; these paths are not shipped so future work does not repeat them.
+- 中文：串行 60 秒验证中，fused kernel 随机后 8 位为 370.144 MH/s，后 16 位向上 range 为 371.519 MH/s；相对当前本地基线提升太小且不足以接近 400 MH/s，因此不作为性能优化发布。
+- English: In serial 60-second verification, the fused kernel measured 370.144 MH/s for random last-8 and 371.519 MH/s for last-16 upward range; the gain over the current local baseline was too small and not close to 400 MH/s, so it is not shipped as a performance optimization.
+
 ## v1.0.19 - 2026-06-21
 
 - 中文：修正 v1.0.18 的 range stride 风险；CPU 端私钥重建恢复为与 GPU `profanity_iterate` 一致的 `foundId << shift` 加每轮 `+G` 公式，避免保存私钥和 GPU 命中点不一致。

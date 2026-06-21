@@ -1,4 +1,4 @@
-# v1.0.19
+# v1.0.20
 
 ## 中文
 
@@ -6,7 +6,7 @@
 
 - Windows 图形启动器：`start.exe`
 - 原生 OpenCL 生成器：`shiyi.exe`
-- 发布资产文件：`shiyi-v1.0.19.zip`
+- 发布资产文件：`shiyi-v1.0.20.zip`
 - 运行时 OpenCL 内核：`kernels/*.cl`
 - 默认目标文件：`profanity.txt` 和 `runtime/targets.txt`
 - 启动辅助脚本：`start.bat`
@@ -14,24 +14,22 @@
 
 ### 本次更新
 
-- 修正 v1.0.18 的 range stride 风险：CPU 端私钥重建恢复为与 GPU `profanity_iterate` 一致的 `foundId << shift` 加每轮 `+G` 公式。
-- 保留启动器随机位数修复：初始私钥为空但填写位数/方向时，随机前缀会按方向对齐完整低位窗口。
-- 保留方向修复：方向留空只在任务开始时随机一次，自动续跑沿用同一方向。
-- 保留停止修复：停止任务会关闭自动续跑，避免用户停止后又进入下一窗口。
-- `scripts/test-range-planner.ps1` 增加防回归检查，避免未同步修改 OpenCL 迭代步长时再次使用 `round * stride` 重建私钥。
+- 修复 `scripts/benchmark-local.ps1` 的验证污染问题：脚本不再默认杀掉同目录已有 `shiyi`/`profanity*` 进程。
+- 发现已有目标进程时，benchmark 脚本返回结构化 `RUNNING` 结果；只有显式传入 `-StopExisting` 才会清理旧进程。
+- 记录并回退三条无稳定收益的优化实验：Keccak state 初始化捷径、单目标后 4 位 Base58 粗筛、`iterate+score` fused kernel。
+- 本轮不把上述实验作为性能优化发布，避免后续重复实现无收益路径。
 
 ### 验证
 
 - `scripts/test-range-planner.ps1` 通过。
-- `scripts/build-windows.ps1 -Version v1.0.19` 构建通过。
-- `shiyi-v1.0.19.zip` 包内包含 `shiyi.exe`、`start.exe`，不包含旧名 `profanity.x64.exe`。
-- `dist/profanity.txt` 和 `dist/runtime/targets.txt` 默认目标一致，均为合法 `1-9 + A` 十行。
-- 构建/检查后未发现残留 `shiyi`、旧 `profanity*`、`TronStudio` 或 `start` 进程。
-- 本机直接运行新版本 `shiyi.exe` 仍被 Application Control 策略拦截；因此本轮不声明 1 分钟性能数据。
+- 小窗口后缀 3 校验命中 `TYfP8oUrMb2xPBdbGxHfFUrsRApFM2h999`，验证命中链路正常。
+- 串行 60 秒 fused 实验结果：随机后 8 位 370.144 MH/s，后 16 位向上 range 371.519 MH/s。
+- 上述速度相对当前本地基线提升太小，且未达到 400 MH/s，因此实验已回退。
+- 验证后未发现残留 `shiyi`、旧 `profanity*`、`TronStudio` 或 `start` 进程。
 
 ### 性能状态
 
-本版本是 v1.0.18 的正确性修正，避免错误的私钥重建公式进入后续优化。400 MH/s 目标尚未达成。
+400 MH/s 目标尚未达成。本版本重点提高 benchmark 证据可靠性，并把已排除的优化路径写入版本记录，方便后续继续迭代。
 
 ## English
 
@@ -39,7 +37,7 @@
 
 - Windows launcher: `start.exe`
 - Native OpenCL generator: `shiyi.exe`
-- Release asset file: `shiyi-v1.0.19.zip`
+- Release asset file: `shiyi-v1.0.20.zip`
 - Runtime OpenCL kernels: `kernels/*.cl`
 - Default target files: `profanity.txt` and `runtime/targets.txt`
 - Launcher helper: `start.bat`
@@ -47,21 +45,19 @@
 
 ### Changes
 
-- Corrected the v1.0.18 range stride risk: CPU-side private-key reconstruction is restored to the GPU-compatible `foundId << shift` plus per-round `+G` formula.
-- Kept the launcher random digit fix: when initial key is blank but digit count or direction is set, the random prefix is aligned to a full low digit window based on direction.
-- Kept the direction fix: blank direction is randomized once at task start and reused by auto-continued windows.
-- Kept the stop fix: stopping a task disables auto-continue so it cannot launch the next window after the user stops it.
-- `scripts/test-range-planner.ps1` now prevents regressing to `round * stride` private-key reconstruction unless the OpenCL iterator step is changed consistently.
+- Fixed benchmark evidence contamination in `scripts/benchmark-local.ps1`: the script no longer kills existing `shiyi`/`profanity*` processes in the same directory by default.
+- When a target process is already running, the benchmark script returns a structured `RUNNING` result; cleanup now requires explicit `-StopExisting`.
+- Recorded and reverted three experiments without stable gains: Keccak state initialization shortcut, single-target last-4 Base58 coarse filter, and the `iterate+score` fused kernel.
+- Those experiments are not shipped as performance optimizations, so future iterations do not repeat paths already ruled out.
 
 ### Verification
 
 - `scripts/test-range-planner.ps1` passed.
-- `scripts/build-windows.ps1 -Version v1.0.19` built successfully.
-- `shiyi-v1.0.19.zip` contains `shiyi.exe` and `start.exe`, with no legacy `profanity.x64.exe`.
-- `dist/profanity.txt` and `dist/runtime/targets.txt` match and contain the legal 10-line `1-9 + A` default target set.
-- No leftover `shiyi`, old `profanity*`, `TronStudio`, or `start` processes were found after build and checks.
-- Direct execution of the new `shiyi.exe` is still blocked by Application Control on this machine, so this release does not claim 1-minute performance data.
+- A small suffix-3 window smoke hit `TYfP8oUrMb2xPBdbGxHfFUrsRApFM2h999`, confirming the hit path still worked during the experiment.
+- Serial 60-second fused experiment results: random last-8 reached 370.144 MH/s, and last-16 upward range reached 371.519 MH/s.
+- The measured gain over the current local baseline was too small and did not reach 400 MH/s, so the experiment was reverted.
+- No leftover `shiyi`, old `profanity*`, `TronStudio`, or `start` processes were found after verification.
 
 ### Performance Status
 
-This release is a correctness correction for v1.0.18, preventing an incorrect private-key reconstruction formula from entering later optimization work. The 400 MH/s target has not been reached yet.
+The 400 MH/s goal has not been reached yet. This release improves benchmark evidence reliability and records rejected optimization paths so later work can continue without repeating them.

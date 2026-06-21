@@ -3,7 +3,8 @@ param(
     [string]$Name = "benchmark",
     [string[]]$Arguments = @(),
     [string]$ArgumentLine = "",
-    [int]$TimeoutSeconds = 180
+    [int]$TimeoutSeconds = 180,
+    [switch]$StopExisting
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,9 +20,24 @@ $exeDir = Split-Path -Parent $resolvedExe
 $tmpDir = Join-Path $repoRoot "experiments\tmp"
 New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
 
-Get-Process shiyi,profanity* -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -and $_.Path.StartsWith($exeDir, [System.StringComparison]::OrdinalIgnoreCase) } |
-    Stop-Process -Force -ErrorAction SilentlyContinue
+$existingProcesses = @(Get-Process shiyi,profanity* -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -and $_.Path.StartsWith($exeDir, [System.StringComparison]::OrdinalIgnoreCase) })
+if ($existingProcesses.Count -gt 0) {
+    if ($StopExisting) {
+        $existingProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+    } else {
+        $existingList = ($existingProcesses | ForEach-Object { "$($_.ProcessName)($($_.Id))" }) -join ", "
+        [pscustomobject]@{
+            Name = $Name
+            ExitCode = "RUNNING"
+            Speed = ""
+            Stdout = ""
+            Stderr = ""
+            Error = "Benchmark target already has running processes in $exeDir`: $existingList. Re-run with -StopExisting to clean them explicitly."
+        }
+        return
+    }
+}
 
 $stdoutPath = Join-Path $tmpDir "$Name.stdout.txt"
 $stderrPath = Join-Path $tmpDir "$Name.stderr.txt"

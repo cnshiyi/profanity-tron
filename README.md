@@ -25,12 +25,12 @@
 ### 本地构建
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.19
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.20
 ```
 
 如果 Windows Application Control / 企业策略要求签名，可传入 `-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。
 
-生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.19.zip`。开发 profiling 构建可额外传入 `-DebugNative`。
+生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.20.zip`。开发 profiling 构建可额外传入 `-DebugNative`。
 
 ### 当前验证
 
@@ -43,6 +43,7 @@ RTX 3070 当前可信样本：
 - v1.0.17 最终合法目标 5 秒冒烟：352.834 MH/s；非法 `0` 目标会被拒绝
 - v1.0.18 修复 range 重复扫描和启动器随机位数/方向续跑逻辑；本机新编译 exe 被 Application Control 拦截，未声明 1 分钟性能结果
 - v1.0.19 修正 v1.0.18 的 range stride 风险，恢复与 GPU 迭代一致的私钥重建公式
+- v1.0.20 修复 benchmark 脚本并行验证时的进程互杀问题，记录并回退三条无稳定收益的 kernel 实验
 
 400 MH/s 目标尚未达成，需要继续优化。
 
@@ -73,12 +74,12 @@ This is a Windows / OpenCL Tron vanity address generator. The Windows launcher i
 ### Local Build
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.19
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.20
 ```
 
 If Windows Application Control or an enterprise policy requires signing, pass `-SignThumbprint` or `-SignPfxPath/-SignPfxPassword`.
 
-Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.19.zip`. Add `-DebugNative` for a development profiling build.
+Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.20.zip`. Add `-DebugNative` for a development profiling build.
 
 ### Current Verification
 
@@ -91,7 +92,10 @@ Current trusted RTX 3070 samples:
 - v1.0.17 final valid-target 5-second smoke: 352.834 MH/s; invalid `0` targets are rejected
 - v1.0.18 fixes range duplicate scanning and launcher random digit/direction auto-continue behavior; the freshly built local exe is blocked by Application Control, so no 1-minute performance result is claimed
 - v1.0.19 corrects the v1.0.18 range stride risk and restores private-key reconstruction to the GPU-compatible iterator formula
+- v1.0.20 fixes benchmark process isolation for parallel verification and records three reverted kernel experiments without stable gains
 
 The 400 MH/s target has not been reached yet and needs further optimization.
 
 Manual `--inverse-multiple` values are checked against a 60% GPU memory budget; leaving it empty for automatic tuning is recommended.
+
+`scripts/benchmark-local.ps1` returns `RUNNING` if the target directory already has a benchmark process. Pass `-StopExisting` only when that cleanup is intentional.
