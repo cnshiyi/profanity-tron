@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.14 - 2026-06-21
+
+- 中文：为手动 `--inverse-multiple` 增加 60% GPU 显存预算校验，避免输入过大批量导致初始化阶段异常退出。
+- English: Added a 60% GPU memory-budget check for manual `--inverse-multiple` values to avoid initialization crashes from overly large batches.
+- 中文：`--inverse-multiple 327680` 在 RTX 3070 上现在返回明确错误并建议使用安全上限或自动调参；默认随机和后 16 位 range 均验证可运行。
+- English: `--inverse-multiple 327680` now returns a clear error on RTX 3070 and suggests the safe cap or automatic tuning; default random and last-16 range modes were verified.
+- 中文：本版本是稳定性和说明补强，400 MH/s 目标仍未达成。
+- English: This is a stability and documentation pass; the 400 MH/s target remains open.
+
 ## v1.0.13 - 2026-06-21
 
 - 中文：多目标后缀 2-12 位路径增加统一后 2 位 GPU 粗筛；合法目标会登记可命中的后两位组合，含 Base58 非法字符的目标不会拖慢完整尾部比较。

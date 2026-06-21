@@ -846,6 +846,29 @@ int main(int argc, char **argv)
 
 		const std::vector<cl_device_id> vGpuDevices = vDevices;
 
+		if (userSetInverseMultiple && worksizeMax == 0)
+		{
+			const cl_ulong perKeyBytes = 96;
+			size_t safeInverseMultiple = inverseMultiple;
+			for (const auto &deviceId : vGpuDevices)
+			{
+				const auto globalMemSize = clGetWrapper<cl_ulong>(clGetDeviceInfo, deviceId, CL_DEVICE_GLOBAL_MEM_SIZE);
+				const cl_ulong memoryBudget = globalMemSize * 60 / 100;
+				const cl_ulong maxByMemory = inverseSize == 0 ? 0 : memoryBudget / (perKeyBytes * inverseSize);
+				if (maxByMemory > 0)
+				{
+					safeInverseMultiple = (std::min)(safeInverseMultiple, static_cast<size_t>(maxByMemory));
+				}
+			}
+			if (inverseMultiple > safeInverseMultiple)
+			{
+				std::cout << "error: --inverse-multiple " << inverseMultiple
+						  << " is too large for the selected GPU memory budget; use "
+						  << safeInverseMultiple << " or leave it empty for automatic tuning :<" << std::endl;
+				return 1;
+			}
+		}
+
 		if (cpuAssist)
 		{
 			std::set<cl_platform_id> gpuPlatforms;

@@ -31,6 +31,8 @@ Usage: ./profanity [OPTIONS]
 
   Device:
     --skip                 Skip GPU device by index
+    --inverse-multiple     GPU batch multiplier; leave empty for automatic tuning
+                           Manual values are checked against a 60% GPU memory budget
     --cpu-assist           Optional low-rate OpenCL CPU assist, default off
     --cpu-assist-inverse-multiple
                            CPU assist batch size, default 128

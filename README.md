@@ -24,12 +24,12 @@
 ### 本地构建
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.13
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.14
 ```
 
 如果 Windows Application Control / 企业策略要求签名，可传入 `-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。
 
-生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.13.zip`。
+生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.14.zip`。
 
 ### 当前验证
 
@@ -41,6 +41,8 @@ RTX 3070 当前可信样本：
 - 默认调参输出：`work = 32`，`inverse-multiple = 196608`
 
 400 MH/s 目标尚未达成，需要继续优化。
+
+手动设置 `--inverse-multiple` 时，程序会按 60% GPU 显存预算做安全校验；一般建议留空使用自动调参。
 
 ## English
 
@@ -66,12 +68,12 @@ This is a Windows / OpenCL Tron vanity address generator. The Windows launcher i
 ### Local Build
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.13
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.14
 ```
 
 If Windows Application Control or an enterprise policy requires signing, pass `-SignThumbprint` or `-SignPfxPath/-SignPfxPassword`.
 
-Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.13.zip`.
+Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.14.zip`.
 
 ### Current Verification
 
@@ -83,3 +85,5 @@ Current trusted RTX 3070 samples:
 - Default tuning output: `work = 32`, `inverse-multiple = 196608`
 
 The 400 MH/s target has not been reached yet and needs further optimization.
+
+Manual `--inverse-multiple` values are checked against a 60% GPU memory budget; leaving it empty for automatic tuning is recommended.
