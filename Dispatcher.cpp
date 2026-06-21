@@ -189,6 +189,11 @@ static cl_ulong4 candidatePrivateForRange(
 	return addScalar64(seed, round + 1);
 }
 
+static cl_ulong rangeAcceptedOffset(cl_ulong round, cl_uint foundId)
+{
+	return static_cast<cl_ulong>(foundId) + round + 1;
+}
+
 unsigned int getKernelExecutionTimeMicros(cl_event &e)
 {
 	cl_ulong timeStart = 0, timeEnd = 0;
@@ -313,6 +318,7 @@ Dispatcher::Device::Device(
 	  m_memSuffixTail2Allowed(clContext, m_clQueue, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, 58 * 58),
 	  m_clSeed(createSeed()),
 	  m_round(0),
+	  m_rangeSampleWatermark(0),
 	  m_speed(PROFANITY_SPEEDSAMPLES),
 	  m_sizeInitialized(0),
 	  m_eventFinished(NULL)
@@ -416,6 +422,46 @@ void Dispatcher::prepareRangeDevice(Device &d)
 {
 	d.m_clSeed = m_range.start;
 	d.m_clSeed.s[m_range.counterLane] = m_range.laneFixed | (m_range.counterStart << m_range.counterShift);
+}
+
+cl_ulong Dispatcher::rangeAcceptedOffset(cl_ulong round, cl_uint foundId) const
+{
+	return ::rangeAcceptedOffset(round, foundId);
+}
+
+size_t Dispatcher::effectiveSampleSize(Device &d)
+{
+	if (!m_range.enabled || m_range.counterMax == 0)
+	{
+		return d.m_size;
+	}
+
+	const cl_ulong firstOffset = rangeAcceptedOffset(d.m_round, 0);
+	if (firstOffset >= m_range.counterMax)
+	{
+		return 0;
+	}
+
+	const cl_ulong lastOffsetExclusive = firstOffset + (std::min)(static_cast<cl_ulong>(d.m_size), m_range.counterMax - firstOffset);
+	if (lastOffsetExclusive <= d.m_rangeSampleWatermark)
+	{
+		return 0;
+	}
+
+	const cl_ulong newFirstOffset = (std::max)(firstOffset, d.m_rangeSampleWatermark);
+	const size_t sampleSize = static_cast<size_t>(lastOffsetExclusive - newFirstOffset);
+	d.m_rangeSampleWatermark = lastOffsetExclusive;
+	return sampleSize;
+}
+
+bool Dispatcher::rangeDeviceExhausted(const Device &d) const
+{
+	if (!m_range.enabled || m_range.counterMax == 0)
+	{
+		return false;
+	}
+
+	return d.m_rangeSampleWatermark >= m_range.counterMax;
 }
 
 void Dispatcher::run()
@@ -771,7 +817,7 @@ void Dispatcher::dispatch(Device &d)
 	cl_event event;
 	if (m_range.enabled)
 	{
-		CLMemory<cl_ulong>::setKernelArg(d.m_kernelScore, 16, d.m_round + 2);
+		CLMemory<cl_ulong>::setKernelArg(d.m_kernelScore, 16, rangeAcceptedOffset(d.m_round + 1, 0));
 	}
 	d.m_memResult.fillZero32(false);
 #ifdef PROFANITY_DEBUG
@@ -889,7 +935,7 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 		bool bDispatch = true;
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
-			d.m_speed.sample(d.m_size);
+			d.m_speed.sample(effectiveSampleSize(d));
 			printSpeed();
 			if (!m_quit && m_benchmarkSeconds > 0)
 			{
@@ -901,7 +947,7 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 			}
 			if (!m_quit && m_range.enabled)
 			{
-				if (m_range.counterMax > 0 && d.m_round + 2 >= m_range.counterMax)
+				if (rangeDeviceExhausted(d))
 				{
 					m_quit = true;
 				}
@@ -1096,12 +1142,12 @@ void Dispatcher::appendResultToFile(const cl_ulong4 &seed, cl_ulong round, const
 		return;
 	}
 
-	out << "time=" << timeBuffer
-		<< " score=" << (unsigned int)score
-		<< " prefix=" << (unsigned int)m_mode.prefixCount
+	(void)score;
+	out << "prefix=" << (unsigned int)m_mode.prefixCount
 		<< " suffix=" << (unsigned int)m_mode.suffixCount
 		<< " address=" << strPublicTron
 		<< " private=" << privateKey.str()
+		<< " time=" << timeBuffer
 		<< std::endl;
 
 	{

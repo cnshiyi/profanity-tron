@@ -99,6 +99,7 @@ class Dispatcher {
 			// Seed and round information
 			cl_ulong4 m_clSeed;
 			cl_ulong m_round;
+			cl_ulong m_rangeSampleWatermark;
 
 			// Speed sampling
 			SpeedSample m_speed;
@@ -130,6 +131,9 @@ class Dispatcher {
 		bool validateResult(const result & r) const;
 		void appendResultToFile(const cl_ulong4 & seed, cl_ulong round, const result & r, cl_uchar score);
 		void prepareRangeDevice(Device & d);
+		cl_ulong rangeAcceptedOffset(cl_ulong round, cl_uint foundId) const;
+		size_t effectiveSampleSize(Device & d);
+		bool rangeDeviceExhausted(const Device & d) const;
 		cl_ulong4 candidatePrivate(const cl_ulong4 & seed, cl_ulong round, cl_uint foundId) const;
 		std::string candidatePrivateHex(const cl_ulong4 & seed, cl_ulong round, cl_uint foundId) const;
 

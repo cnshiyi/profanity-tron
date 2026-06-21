@@ -25,7 +25,7 @@
 ### 本地构建
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.21
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.22
 ```
 
 如果 Windows Application Control / 企业策略要求签名，可传入 `-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。
@@ -79,7 +79,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 
 
 If Windows Application Control or an enterprise policy requires signing, pass `-SignThumbprint` or `-SignPfxPath/-SignPfxPassword`.
 
-Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.21.zip`. Add `-DebugNative` for a development profiling build.
+Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.22.zip`. Add `-DebugNative` for a development profiling build.
 
 ### Current Verification
 
@@ -93,6 +93,7 @@ Current trusted RTX 3070 samples:
 - v1.0.18 fixes range duplicate scanning and launcher random digit/direction auto-continue behavior; the freshly built local exe is blocked by Application Control, so no 1-minute performance result is claimed
 - v1.0.19 corrects the v1.0.18 range stride risk and restores private-key reconstruction to the GPU-compatible iterator formula
 - v1.0.21 fixes finite range result contamination outside the requested window and adds a small-window runtime regression; random last-8 reached 371.654 MH/s over 60 seconds, last-16 upward range reached 370.560 MH/s, and the 400 MH/s target remains open
+- v1.0.22 corrects finite range speed accounting to count only newly covered candidates; random last-8 reached 352.092 MH/s over 60 seconds, while last-16 upward range reports 7.001 H/s under the corrected metric, proving the next step must redesign the GPU iterator stride
 
 The 400 MH/s target has not been reached yet and needs further optimization.
 

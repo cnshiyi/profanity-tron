@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.22 - 2026-06-22
+
+- 中文：修正有限 range 模式的速度计数口径；现在只把“第一次新增覆盖、且仍在用户窗口内”的候选计入速度样本，避免 `+G` 滑动重复覆盖被显示成虚高的 MH/s。
+- English: Corrected finite range speed accounting; range mode now samples only newly covered candidates still inside the requested window, avoiding inflated MH/s from the current `+G` sliding overlap.
+- 中文：保留 GPU 结果边界保护，并补充 runtime 回归，验证小窗口输出格式不再包含 `score=`，结果行顺序为 `prefix/suffix/address/private/time`，时间位于最后。
+- English: Kept the GPU result-bound guard and extended runtime regression coverage so saved result lines omit `score=` and use `prefix/suffix/address/private/time`, with time at the end.
+- 中文：1 分钟验证显示随机后 8 位为 `352.092 MH/s`；后 16 位向上 range 在真实新增覆盖口径下为 `7.001 H/s`，证明当前 range 仍需要 GPU 迭代步长架构优化，不能声明 400 MH/s。
+- English: One-minute verification measured `352.092 MH/s` for random last-8; last-16 upward range measured `7.001 H/s` under the corrected newly-covered-candidate metric, proving range still needs GPU iterator stride work and must not claim 400 MH/s.
+
 ## v1.0.21 - 2026-06-21
 
 - 中文：修复有限 range 模式的窗口外结果污染；GPU score 阶段现在按当前轮次偏移检查真实候选是否仍在 range 窗口内，避免 `1..f` 这类小窗口继续保存 `10` 之后的私钥。

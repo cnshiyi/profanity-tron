@@ -1,4 +1,4 @@
-# v1.0.21
+# v1.0.22
 
 ## 中文
 
@@ -6,7 +6,7 @@
 
 - Windows 图形启动器：`start.exe`
 - 原生 OpenCL 生成器：`shiyi.exe`
-- 发布资产文件：`shiyi-v1.0.21.zip`
+- 发布资产：`shiyi-v1.0.22.zip`
 - 运行时 OpenCL 内核：`kernels/*.cl`
 - 默认目标文件：`profanity.txt` 和 `runtime/targets.txt`
 - 启动辅助脚本：`start.bat`
@@ -14,21 +14,22 @@
 
 ### 本次更新
 
-- 修复有限 range 模式的窗口外结果污染：GPU score 阶段现在按当前轮次偏移检查真实候选是否仍在用户指定窗口内。
-- 小窗口 `1..f` 不再保存 `10`、`11` 等窗口外私钥。
-- 有限 range 的退出条件同步收紧，当前可达候选耗尽后更早结束，降低小窗口测试空转和进程残留风险。
-- 新增 `scripts/test-range-runtime.ps1`，自动验证小窗口边界和已知全 0 后 16 位向上 suffix-8 命中。
+- 修正有限 range 模式的速度计数：只把第一次新增覆盖、且仍在用户指定窗口内的候选计入速度样本。
+- 继续保留 v1.0.21 的窗口外结果保护，避免小窗口保存越界私钥。
+- 修正结果文件格式：移除 `score=`，并将 `time=` 放到每行最后。
+- 扩展 `scripts/test-range-runtime.ps1`，同时验证小窗口边界、已知后 8 位命中、输出格式和 range 真实覆盖计数。
 
 ### 验证
 
 - `scripts/test-range-planner.ps1` 通过。
 - `scripts/test-range-runtime.ps1` 通过。
-- 小窗口 `0..f` 跳过无效私钥 `0` 后，仅保存 `...0003` 到 `...000f`，不再越界保存 `...0010` 之后。
-- 已知命中仍成立：目标 `TJSWuhAyiDQyb7E8ne1AitDV62H8HXRnvU`，私钥 `0000000000000000000000000000000000000000000000000000000002fcf6a3`。
+- 构建通过：`dist/shiyi-v1.0.22.zip`。
+- 随机后 8 位 60 秒：`352.092 MH/s`。
+- 全 0 初始私钥、后 16 位向上 range 60 秒：`7.001 H/s`，这是修正重复覆盖计数后的真实新增覆盖速度。
 
 ### 性能状态
 
-本版本是 range 正确性修复，不声明 400 MH/s 已达成。完整不重复、不漏扫的 range 遍历和 400 MH/s 优化仍继续迭代。
+本版本不声明 400 MH/s 目标已达成。修正后的 range 数据证明当前 `+G` 滑动迭代会大量重复覆盖，下一步需要做 GPU 迭代步长架构优化，而不是继续相信重复计数的虚高 MH/s。
 
 ## English
 
@@ -36,7 +37,7 @@
 
 - Windows launcher: `start.exe`
 - Native OpenCL generator: `shiyi.exe`
-- Release asset: `shiyi-v1.0.21.zip`
+- Release asset: `shiyi-v1.0.22.zip`
 - Runtime OpenCL kernels: `kernels/*.cl`
 - Default target files: `profanity.txt` and `runtime/targets.txt`
 - Launcher helper: `start.bat`
@@ -44,18 +45,19 @@
 
 ### Changes
 
-- Fixed finite range result contamination outside the requested window: the GPU score stage now checks the current round offset before accepting a range candidate.
-- A small `1..f` window no longer saves out-of-window keys such as `10` or `11`.
-- Tightened finite range exit conditions so the currently reachable candidate window ends earlier, reducing idle loops and process-cleanup risk in small-window tests.
-- Added `scripts/test-range-runtime.ps1` to verify the small-window boundary and the known all-zero last-16 upward suffix-8 hit.
+- Corrected finite range speed accounting: only newly covered candidates still inside the requested window are sampled.
+- Kept the v1.0.21 out-of-window result guard so small windows do not save private keys outside the requested range.
+- Fixed saved result format: removed `score=` and moved `time=` to the end of each line.
+- Extended `scripts/test-range-runtime.ps1` to verify small-window bounds, the known suffix-8 hit, output format, and corrected range coverage accounting.
 
 ### Verification
 
 - `scripts/test-range-planner.ps1` passed.
 - `scripts/test-range-runtime.ps1` passed.
-- The `0..f` small-window test skips invalid private key `0` and only saves `...0003` through `...000f`; it no longer saves `...0010` or later.
-- The known hit still works: target `TJSWuhAyiDQyb7E8ne1AitDV62H8HXRnvU`, private key `0000000000000000000000000000000000000000000000000000000002fcf6a3`.
+- Build passed: `dist/shiyi-v1.0.22.zip`.
+- Random last-8, 60 seconds: `352.092 MH/s`.
+- All-zero initial key, last-16 upward range, 60 seconds: `7.001 H/s` under the corrected newly-covered-candidate metric.
 
 ### Performance Status
 
-This is a range correctness release and does not claim the 400 MH/s target. Complete non-duplicate, non-skipping range traversal and the 400 MH/s optimization goal remain active follow-up work.
+This release does not claim the 400 MH/s target. The corrected range data proves the current `+G` sliding iterator repeats coverage heavily, so the next optimization step must change the GPU iterator stride architecture instead of trusting inflated duplicate-count MH/s.
