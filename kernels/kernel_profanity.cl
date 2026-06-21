@@ -678,19 +678,19 @@ __kernel void profanity_score_matching(
 	if (matchingCount > 1 && prefixCount <= 1 && suffixCount >= 2 && suffixCount <= 12)
 	{
 		uchar tailIndices[12];
+		uint checksumFirstWord;
+		const uint mod3364 = tronhash_mod_3364_from_ethhash(hash, &checksumFirstWord);
+		tailIndices[0] = (uchar)(mod3364 % 58u);
+		tailIndices[1] = (uchar)((mod3364 / 58u) % 58u);
+
+		const uint allowIndex = (uint)tailIndices[0] * 58u + (uint)tailIndices[1];
+		if (!suffixTail2Allowed[allowIndex])
+		{
+			return;
+		}
+
 		if (suffixTailAllExact[0])
 		{
-			uint checksumFirstWord;
-			const uint mod3364 = tronhash_mod_3364_from_ethhash(hash, &checksumFirstWord);
-			tailIndices[0] = (uchar)(mod3364 % 58u);
-			tailIndices[1] = (uchar)((mod3364 / 58u) % 58u);
-
-			const uint allowIndex = (uint)tailIndices[0] * 58u + (uint)tailIndices[1];
-			if (!suffixTail2Allowed[allowIndex])
-			{
-				return;
-			}
-
 			uchar tron_hash[25];
 			tron_hash[0] = 65;
 #pragma unroll
@@ -732,6 +732,7 @@ __kernel void profanity_score_matching(
 			}
 			return;
 		}
+
 		base58_tail_indices_from_ethhash(hash, tailIndices, suffixCount);
 		for (uint j = 0; j < matchingCount; ++j)
 		{

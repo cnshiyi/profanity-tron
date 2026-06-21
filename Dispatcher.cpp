@@ -590,6 +590,20 @@ void Dispatcher::initBegin(Device &d)
 					d.m_memSuffixTail2Allowed[static_cast<size_t>(idx0) * 58 + idx1] = 1;
 				}
 			}
+			if (m_mode.suffixCount >= 2)
+			{
+				const size_t dataIndex0 = dataBase + 19;
+				const size_t dataIndex1 = dataBase + 18;
+				if (m_mode.data1[dataIndex0] == 0xff && m_mode.data1[dataIndex1] == 0xff)
+				{
+					const cl_uchar idx0 = base58IndexOf(m_mode.data2[dataIndex0]);
+					const cl_uchar idx1 = base58IndexOf(m_mode.data2[dataIndex1]);
+					if (idx0 < 58 && idx1 < 58)
+					{
+						d.m_memSuffixTail2Allowed[static_cast<size_t>(idx0) * 58 + idx1] = 1;
+					}
+				}
+			}
 		}
 		bool commonTailAfterSuffix2 = allExactSuffix && m_mode.suffixCount > 2;
 		if (commonTailAfterSuffix2)

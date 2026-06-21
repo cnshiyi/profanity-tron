@@ -1,5 +1,14 @@
 # Version Record
 
+## v1.0.13 - 2026-06-21
+
+- 中文：多目标后缀 2-12 位路径增加统一后 2 位 GPU 粗筛；合法目标会登记可命中的后两位组合，含 Base58 非法字符的目标不会拖慢完整尾部比较。
+- English: Added a unified last-2-character GPU coarse filter for multi-target suffix matching from 2 to 12 chars; valid targets register possible tail pairs while targets containing non-Base58 characters no longer force full-tail comparisons.
+- 中文：默认 10 目标列表含 `0` 的同口径 8 秒测试从 328.545 MH/s 提升到 348.527 MH/s；合法 10 目标为 354.192 MH/s，单目标为 356.208 MH/s，后 16 位向上 range 10 秒为 356.719 MH/s。
+- English: Same-method 8-second default 10-target testing with `0` entries improved from 328.545 MH/s to 348.527 MH/s; valid 10-target testing reached 354.192 MH/s, single-target reached 356.208 MH/s, and last-16 upward range mode reached 356.719 MH/s over 10 seconds.
+- 中文：正确性验证仍命中 `TJSWuhAyiDQyb7E8ne1AitDV62H8HXRnvU`，私钥 `...0000000002fcf6a3`；400 MH/s 目标仍未达成。
+- English: Correctness verification still hit `TJSWuhAyiDQyb7E8ne1AitDV62H8HXRnvU` with private key `...0000000002fcf6a3`; the 400 MH/s target remains open.
+
 ## v1.0.12 - 2026-06-21
 
 - 中文：单目标后缀 3-12 位匹配增加后 2 位 GPU 粗筛；绝大多数候选在算完整 Base58 尾部前提前返回。

@@ -24,12 +24,12 @@
 ### 本地构建
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.12
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.13
 ```
 
 如果 Windows Application Control / 企业策略要求签名，可传入 `-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。
 
-生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.12.zip`。
+生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.13.zip`。
 
 ### 当前验证
 
@@ -37,6 +37,7 @@ RTX 3070 当前可信样本：
 
 - 随机单目标后 8 位 10 秒：354.943 MH/s
 - 全 0 初始私钥、后 16 位向上、后 8 位地址测试 10 秒：357.349 MH/s
+- 默认 10 目标列表 8 秒：348.527 MH/s
 - 默认调参输出：`work = 32`，`inverse-multiple = 196608`
 
 400 MH/s 目标尚未达成，需要继续优化。
@@ -65,12 +66,12 @@ This is a Windows / OpenCL Tron vanity address generator. The Windows launcher i
 ### Local Build
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.12
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.13
 ```
 
 If Windows Application Control or an enterprise policy requires signing, pass `-SignThumbprint` or `-SignPfxPath/-SignPfxPassword`.
 
-Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.12.zip`.
+Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.13.zip`.
 
 ### Current Verification
 
@@ -78,6 +79,7 @@ Current trusted RTX 3070 samples:
 
 - Random single-target last-8, 10 seconds: 354.943 MH/s
 - All-zero initial key, last-16 upward, address last-8 test, 10 seconds: 357.349 MH/s
+- Default 10-target list, 8 seconds: 348.527 MH/s
 - Default tuning output: `work = 32`, `inverse-multiple = 196608`
 
 The 400 MH/s target has not been reached yet and needs further optimization.
