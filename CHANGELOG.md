@@ -1,5 +1,16 @@
 # Version Record
 
+## v1.0.19 - 2026-06-21
+
+- 中文：修正 v1.0.18 的 range stride 风险；CPU 端私钥重建恢复为与 GPU `profanity_iterate` 一致的 `foundId << shift` 加每轮 `+G` 公式，避免保存私钥和 GPU 命中点不一致。
+- English: Corrected the v1.0.18 range stride risk; CPU-side private-key reconstruction is restored to the GPU-compatible `foundId << shift` plus per-round `+G` formula, avoiding saved keys diverging from GPU hits.
+- 中文：保留 v1.0.18 的启动器修复：随机位数对齐完整低位窗口、方向留空只随机一次、自动续跑沿用方向、停止任务关闭自动续跑。
+- English: Kept the v1.0.18 launcher fixes: random digit alignment to a full low window, blank direction randomized once, auto-continue reusing direction, and stop disabling auto-continue.
+- 中文：`scripts/test-range-planner.ps1` 新增防回归检查，禁止在未同步修改 OpenCL 迭代步长时再次使用 `round * stride` 私钥重建。
+- English: `scripts/test-range-planner.ps1` now prevents regressing to `round * stride` private-key reconstruction unless the OpenCL iterator step is changed consistently.
+- 中文：v1.0.19 构建和包内容校验通过；本机新版本运行仍被 Application Control 策略拦截，因此不声明 1 分钟性能结果。
+- English: v1.0.19 builds and package checks pass; local execution of the new binary is still blocked by Application Control, so no 1-minute performance result is claimed.
+
 ## v1.0.18 - 2026-06-21
 
 - 中文：修复有限 range 模式重复扫描问题；range 候选私钥现在按 `round * deviceSize + id` 推进，覆盖完当前窗口后退出，避免小位数窗口反复扫同一批候选。

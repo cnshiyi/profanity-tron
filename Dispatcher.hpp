@@ -128,10 +128,10 @@ class Dispatcher {
 		void enqueueResult(Device & d, const result & r, cl_uchar score);
 		void processResultQueue();
 		bool validateResult(const result & r) const;
-		void appendResultToFile(const cl_ulong4 & seed, cl_ulong round, cl_ulong stride, const result & r, cl_uchar score);
+		void appendResultToFile(const cl_ulong4 & seed, cl_ulong round, const result & r, cl_uchar score);
 		void prepareRangeDevice(Device & d);
-		cl_ulong4 candidatePrivate(const cl_ulong4 & seed, cl_ulong round, cl_ulong stride, cl_uint foundId) const;
-		std::string candidatePrivateHex(const cl_ulong4 & seed, cl_ulong round, cl_ulong stride, cl_uint foundId) const;
+		cl_ulong4 candidatePrivate(const cl_ulong4 & seed, cl_ulong round, cl_uint foundId) const;
+		std::string candidatePrivateHex(const cl_ulong4 & seed, cl_ulong round, cl_uint foundId) const;
 
 		void onEvent(cl_event event, cl_int status, Device & d);
 
@@ -165,7 +165,7 @@ class Dispatcher {
 		std::mutex m_mutex;
 		std::mutex m_resultQueueMutex;
 		std::condition_variable m_resultQueueCv;
-		std::deque<std::tuple<cl_ulong4, cl_ulong, cl_ulong, result, cl_uchar>> m_resultQueue;
+		std::deque<std::tuple<cl_ulong4, cl_ulong, result, cl_uchar>> m_resultQueue;
 		std::thread m_resultThread;
 		bool m_resultThreadStop;
 		std::chrono::time_point<std::chrono::steady_clock> timeStart;

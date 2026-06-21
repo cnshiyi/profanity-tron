@@ -110,6 +110,7 @@ Assert-Equal "digits2-down-end" (Normalize-Key "1300") (Get-Range-End $downStart
 Assert-Equal "digits2-down-next-block" (Normalize-Key "12ff") (Get-Next-Range-Start $downStart 2 $false)
 
 $source = Get-Content -LiteralPath (Join-Path $PSScriptRoot "..\launcher\TronStudio.cs") -Raw
+$dispatcher = Get-Content -LiteralPath (Join-Path $PSScriptRoot "..\Dispatcher.cpp") -Raw
 if ($source -notmatch "AlignRangeStart\(CreateRandomPrivateKey\(\), digits, directionUp\)") {
     throw "random fixed-digit mode must align the random start to a full digit window"
 }
@@ -121,6 +122,12 @@ if ($source -notmatch "rangeAutoContinue = false;\s*rangeNextStartKey = null;\s*
 }
 if ($source -notmatch "digits < 8" -or $source -notmatch "digits > 8") {
     throw "launcher must keep explicit fixed-digit advance branches for <8, =8, and >8 digits"
+}
+if ($dispatcher -match "round \\* stride" -or $dispatcher -match "round \\* static_cast<cl_ulong>\\(d\\.m_size\\)") {
+    throw "range CPU private-key reconstruction must stay aligned with the GPU +G iterator; do not use round * stride without changing the kernel step"
+}
+if ($dispatcher -notmatch "return addScalar64\(seed, round \+ 1\);") {
+    throw "range CPU private-key reconstruction must include the same +G round step used by profanity_iterate"
 }
 
 Write-Host "range planner expectations passed"
