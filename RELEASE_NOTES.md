@@ -1,4 +1,4 @@
-# v1.0.17
+# v1.0.18
 
 ## 中文
 
@@ -6,7 +6,7 @@
 
 - Windows 图形启动器：`start.exe`
 - 原生 OpenCL 生成器：`shiyi.exe`
-- 发布资产文件：`shiyi-v1.0.17.zip`
+- 发布资产文件：`shiyi-v1.0.18.zip`
 - 运行时 OpenCL 内核：`kernels/*.cl`
 - 默认目标文件：`profanity.txt` 和 `runtime/targets.txt`
 - 启动辅助脚本：`start.bat`
@@ -14,24 +14,24 @@
 
 ### 本次更新
 
-- 启动器读取旧 `runtime/targets.txt` 时会校验每一行目标。
-- 如果旧目标包含 `[银行卡]`、`0` 或其他 TRON/Base58 不支持的字符，界面会自动回退到合法默认目标。
-- 保存目标和开始生成前会阻止非法目标，避免旧占位文本或含 `0` 的地址再次写回运行目录。
-- 原生 `shiyi.exe` 对直接传入的 34 位 TRON 地址增加 Base58 校验，含 `0` 的目标会报错退出。
-- Windows 构建脚本在打包前校验默认目标，防止发布包混入非法默认目标。
+- 修复有限 range 模式重复扫描问题；range 候选现在按 `round * deviceSize + id` 推进，覆盖完当前窗口后退出。
+- 启动器在初始私钥留空但填写位数或方向时，会生成随机前缀，并按位数/方向把低位窗口对齐到完整起点。
+- 方向留空时只随机一次；自动续跑沿用同一方向，避免每轮重新随机导致反向或重复。
+- 停止任务会关闭自动续跑，避免用户停止后又进入下一窗口。
+- 增加 `scripts/test-range-planner.ps1`，长期验证 16 位向上进位、随机位数对齐、方向续用、停止禁用自动续跑，以及小于 8/等于 8/大于 8 位数分支。
 
 ### 验证
 
-- `dist/profanity.txt` 和 `dist/runtime/targets.txt` 均为 `1-9 + A` 十行默认目标。
-- `shiyi-v1.0.17.zip` 包内包含 `shiyi.exe`、`start.exe`，不包含旧名 `profanity.x64.exe`。
-- zip 包内 `profanity.txt` 和 `runtime/targets.txt` 均不含 `[银行卡]` 或 `0` 默认目标。
-- 直接传入 `TTTTTTTTTTTTTTTTT00000000000000000` 会被 `shiyi.exe` 拒绝。
-- 最终合法目标 5 秒冒烟测试通过：352.834 MH/s。
-- 构建/测试后未发现残留 `shiyi`、旧 `profanity*`、`TronStudio` 或 `start` 进程。
+- `scripts/test-range-planner.ps1` 通过。
+- `scripts/build-windows.ps1 -Version v1.0.18` 构建通过。
+- `shiyi-v1.0.18.zip` 包内包含 `shiyi.exe`、`start.exe`，不包含旧名 `profanity.x64.exe`。
+- `dist/profanity.txt` 和 `dist/runtime/targets.txt` 默认目标一致，均为合法 `1-9 + A` 十行。
+- 构建/检查后未发现残留 `shiyi`、旧 `profanity*`、`TronStudio` 或 `start` 进程。
+- 本机直接运行新编译 `dist/shiyi.exe` 被 Application Control 策略拦截；因此本轮不声明 1 分钟性能数据。
 
 ### 性能状态
 
-本版本修复默认目标和非法目标回灌问题，不声明 400 MH/s 已达成。400 MH/s 优化目标继续保持打开，后续仍应优先优化 iterate/inverse 主内核。
+本版本修复 range 行为和启动器随机位数/方向逻辑，是继续优化 400 MH/s 目标前的正确性修复。400 MH/s 目标尚未达成。
 
 ## English
 
@@ -39,7 +39,7 @@
 
 - Windows launcher: `start.exe`
 - Native OpenCL generator: `shiyi.exe`
-- Release asset file: `shiyi-v1.0.17.zip`
+- Release asset file: `shiyi-v1.0.18.zip`
 - Runtime OpenCL kernels: `kernels/*.cl`
 - Default target files: `profanity.txt` and `runtime/targets.txt`
 - Launcher helper: `start.bat`
@@ -47,21 +47,21 @@
 
 ### Changes
 
-- The launcher now validates every target loaded from an existing `runtime/targets.txt`.
-- If an old target contains `[银行卡]`, `0`, or any other character unsupported by TRON/Base58, the launcher falls back to the clean default target list.
-- Saving targets and starting generation now reject invalid targets, preventing legacy placeholders or `0` targets from being written back to runtime files.
-- Native `shiyi.exe` now validates direct 34-character TRON target arguments and rejects targets containing `0`.
-- The Windows build script validates default targets before packaging, preventing invalid defaults from entering release packages.
+- Fixed duplicate scanning in finite range mode; range candidates now advance by `round * deviceSize + id` and stop after the current window is covered.
+- When the launcher has an empty initial key but a digit count or direction is set, it now generates a random prefix and aligns the low digit window to a full start boundary.
+- Blank direction is randomized once at task start; auto-continued windows keep that direction instead of re-randomizing every round.
+- Stopping a task disables auto-continue so the launcher cannot restart into the next window after the user stops it.
+- Added `scripts/test-range-planner.ps1` to persistently verify 16-digit upward carry, random digit alignment, direction reuse, stop disabling auto-continue, and explicit `<8`, `=8`, and `>8` digit branches.
 
 ### Verification
 
-- `dist/profanity.txt` and `dist/runtime/targets.txt` both contain the 10-line `1-9 + A` default target set.
-- `shiyi-v1.0.17.zip` contains `shiyi.exe` and `start.exe`, with no legacy `profanity.x64.exe`.
-- Packaged `profanity.txt` and `runtime/targets.txt` contain no `[银行卡]` text and no `0` default target.
-- Passing `TTTTTTTTTTTTTTTTT00000000000000000` directly to `shiyi.exe` is rejected.
-- Final valid-target 5-second smoke test passed: 352.834 MH/s.
-- No leftover `shiyi`, old `profanity*`, `TronStudio`, or `start` processes were found after build and tests.
+- `scripts/test-range-planner.ps1` passed.
+- `scripts/build-windows.ps1 -Version v1.0.18` built successfully.
+- `shiyi-v1.0.18.zip` contains `shiyi.exe` and `start.exe`, with no legacy `profanity.x64.exe`.
+- `dist/profanity.txt` and `dist/runtime/targets.txt` match and contain the legal 10-line `1-9 + A` default target set.
+- No leftover `shiyi`, old `profanity*`, `TronStudio`, or `start` processes were found after build and checks.
+- Direct execution of the freshly built `dist/shiyi.exe` is blocked by Application Control on this machine, so this release does not claim 1-minute performance data.
 
 ### Performance Status
 
-This release fixes default-target and invalid-target persistence issues. It does not claim the 400 MH/s goal has been reached. The 400 MH/s optimization target remains open, and the next optimization pass should still prioritize the iterate/inverse kernels.
+This release fixes range behavior and launcher random digit/direction handling before continuing the 400 MH/s optimization loop. The 400 MH/s target has not been reached yet.

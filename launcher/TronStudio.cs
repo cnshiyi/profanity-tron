@@ -89,6 +89,9 @@ namespace ProfanityTronStudio
         private int hitCount;
         private bool shuttingDown;
         private bool splitLayoutReady;
+        private bool rangeAutoContinue;
+        private string rangeNextStartKey;
+        private bool rangeDirectionUp;
 
         public MainForm()
         {
@@ -425,6 +428,13 @@ namespace ProfanityTronStudio
 
         private void StartGeneration()
         {
+            rangeAutoContinue = false;
+            rangeNextStartKey = null;
+            StartGenerationCore(null, true);
+        }
+
+        private void StartGenerationCore(string overrideStartKey, bool resetResults)
+        {
             if (runningProcess != null)
             {
                 try
@@ -478,17 +488,24 @@ namespace ProfanityTronStudio
             lastOutputPath = CreateRunOutputPath();
             File.WriteAllText(lastOutputPath, string.Empty, Encoding.UTF8);
 
-            seenHits.Clear();
-            importedRunHits.Clear();
-            hitCount = 0;
-            hitCountValue.Text = "0";
-            resultGrid.Rows.Clear();
-            logBox.Clear();
+            if (resetResults)
+            {
+                seenHits.Clear();
+                importedRunHits.Clear();
+                hitCount = 0;
+                hitCountValue.Text = "0";
+                resultGrid.Rows.Clear();
+                logBox.Clear();
+            }
+            else
+            {
+                importedRunHits.Clear();
+            }
 
             string arguments;
             try
             {
-                arguments = BuildArguments(matching, lastOutputPath);
+                arguments = BuildArguments(matching, lastOutputPath, overrideStartKey);
             }
             catch (Exception error)
             {
@@ -531,9 +548,11 @@ namespace ProfanityTronStudio
 
                     pollTimer.Stop();
                     ImportHitsFromFile(lastOutputPath);
+                    var exitCode = -1;
                     try
                     {
-                        AddLog(UiText.T("4EFB 52A1 7ED3 675F FF0C 9000 51FA 7801 3A 20") + proc.ExitCode);
+                        exitCode = proc.ExitCode;
+                        AddLog(UiText.T("4EFB 52A1 7ED3 675F FF0C 9000 51FA 7801 3A 20") + exitCode);
                     }
                     catch
                     {
@@ -543,6 +562,11 @@ namespace ProfanityTronStudio
                     runningProcess = null;
                     runningProcessId = 0;
                     DisposeProcess(proc);
+                    if (!shuttingDown && rangeAutoContinue && exitCode == 0 && !string.IsNullOrWhiteSpace(rangeNextStartKey))
+                    {
+                        var nextStart = rangeNextStartKey;
+                        StartGenerationCore(nextStart, false);
+                    }
                 });
             };
 
@@ -572,7 +596,7 @@ namespace ProfanityTronStudio
             }
         }
 
-        private string BuildArguments(string matching, string outputPath)
+        private string BuildArguments(string matching, string outputPath, string overrideStartKey)
         {
             var args = new List<string>
             {
@@ -583,14 +607,14 @@ namespace ProfanityTronStudio
                 "--output", outputPath
             };
 
-            AppendRangeArguments(args);
+            AppendRangeArguments(args, overrideStartKey);
             return string.Join(" ", args.Select(QuoteArgument));
         }
 
-        private void AppendRangeArguments(List<string> args)
+        private void AppendRangeArguments(List<string> args, string overrideStartKey)
         {
             var digitsText = optDigitsBox.Text.Trim();
-            var keyText = optKeyBox.Text.Trim();
+            var keyText = overrideStartKey ?? optKeyBox.Text.Trim();
             var directionText = Convert.ToString(optDirBox.SelectedItem ?? string.Empty).Trim();
             var hasDigits = digitsText.Length > 0;
             var hasKey = keyText.Length > 0;
@@ -613,11 +637,14 @@ namespace ProfanityTronStudio
                 throw new InvalidOperationException(UiText.T("6307 5B9A 4F4D 6570 5FC5 987B 662F 0020 0031 0020 5230 0020 0031 0036 3002"));
             }
 
-            var startKey = NormalizePrivateKey(keyText.Length == 0 ? CreateRandomPrivateKey() : keyText);
             var upText = UiText.T("5411 4E0A");
             var downText = UiText.T("5411 4E0B");
             bool directionUp;
-            if (directionText.Length == 0)
+            if (overrideStartKey != null)
+            {
+                directionUp = rangeDirectionUp;
+            }
+            else if (directionText.Length == 0)
             {
                 directionUp = CreateRandomBit();
                 AddLog(UiText.T("65B9 5411 4E3A 7A7A FF0C 5DF2 968F 673A 9009 62E9 FF1A") + (directionUp ? upText : downText));
@@ -627,13 +654,44 @@ namespace ProfanityTronStudio
                 directionUp = string.Equals(directionText, upText, StringComparison.Ordinal);
             }
 
+            var startKey = BuildRangeStartKey(keyText, digits, directionUp, overrideStartKey != null);
             var endKey = BuildRangeEnd(startKey, digits, directionUp);
+            rangeDirectionUp = directionUp;
+            rangeAutoContinue = true;
+            rangeNextStartKey = BuildNextRangeStart(startKey, digits, directionUp, GetRangeAdvanceMode(digits));
+            AddLog(UiText.T("968F 673A 4F4D 6570 540E 4F1A 6309 65B9 5411 4ECE 5B8C 6574 7A97 53E3 8FB9 754C 5F00 59CB FF1B 8DD1 5B8C 81EA 52A8 8FDB 5165 4E0B 4E00 7A97 53E3 3002"));
+            if (directionText.Length == 0 && overrideStartKey == null)
+            {
+                AddLog(UiText.T("65B9 5411 7559 7A7A 65F6 968F 673A 4E00 6B21 FF1B 81EA 52A8 7EED 8DD1 6CBF 7528 540C 4E00 65B9 5411 3002"));
+            }
             args.Add("--range-start");
             args.Add(startKey);
             args.Add("--range-end");
             args.Add(endKey);
             args.Add("--range-direction");
             args.Add(directionUp ? "up" : "down");
+        }
+
+        private static string BuildRangeStartKey(string keyText, int digits, bool directionUp, bool isContinuation)
+        {
+            if (keyText.Length > 0 || isContinuation)
+            {
+                return NormalizePrivateKey(keyText);
+            }
+
+            return AlignRangeStart(CreateRandomPrivateKey(), digits, directionUp);
+        }
+
+        private static string AlignRangeStart(string startKey, int digits, bool directionUp)
+        {
+            var chars = NormalizePrivateKey(startKey).ToCharArray();
+            var first = 64 - digits;
+            var fill = directionUp ? '0' : 'f';
+            for (var i = first; i < 64; i++)
+            {
+                chars[i] = fill;
+            }
+            return new string(chars);
         }
 
         private static string NormalizePrivateKey(string value)
@@ -692,6 +750,85 @@ namespace ProfanityTronStudio
             return new string(chars);
         }
 
+        private enum RangeAdvanceMode
+        {
+            BackwardDigit,
+            Boundary,
+            ForwardDigit
+        }
+
+        private static RangeAdvanceMode GetRangeAdvanceMode(int digits)
+        {
+            if (digits < 8) return RangeAdvanceMode.BackwardDigit;
+            if (digits > 8) return RangeAdvanceMode.ForwardDigit;
+            return RangeAdvanceMode.Boundary;
+        }
+
+        private static string BuildNextRangeStart(string startKey, int digits, bool directionUp, RangeAdvanceMode advanceMode)
+        {
+            var chars = startKey.ToCharArray();
+            var first = 64 - digits;
+            var current = Convert.ToUInt64(startKey.Substring(first, digits), 16);
+            ulong limit = digits == 16 ? ulong.MaxValue : ((1UL << (digits * 4)) - 1UL);
+            var carryIndex = GetRangeCarryIndex(first, advanceMode);
+            if (carryIndex < 0) return null;
+
+            if (directionUp)
+            {
+                for (var i = first; i < 64; i++) chars[i] = '0';
+                for (var i = carryIndex; i >= 0; i--)
+                {
+                    var value = HexValue(chars[i]);
+                    if (value < 15)
+                    {
+                        chars[i] = HexChar(value + 1);
+                        return new string(chars);
+                    }
+                    chars[i] = '0';
+                }
+                return null;
+            }
+
+            for (var i = first; i < 64; i++) chars[i] = 'f';
+            for (var i = carryIndex; i >= 0; i--)
+            {
+                var value = HexValue(chars[i]);
+                if (value > 0)
+                {
+                    chars[i] = HexChar(value - 1);
+                    return new string(chars);
+                }
+                chars[i] = 'f';
+            }
+            return current == 0 && startKey.Trim('0').Length == 0 ? null : new string(chars);
+        }
+
+        private static int GetRangeCarryIndex(int first, RangeAdvanceMode advanceMode)
+        {
+            switch (advanceMode)
+            {
+                case RangeAdvanceMode.BackwardDigit:
+                    return first - 1;
+                case RangeAdvanceMode.ForwardDigit:
+                    return first - 1;
+                default:
+                    return first - 1;
+            }
+        }
+
+        private static int HexValue(char c)
+        {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+            throw new InvalidOperationException("invalid hex character");
+        }
+
+        private static char HexChar(int value)
+        {
+            return "0123456789abcdef"[value];
+        }
+
         private string CreateRunOutputPath()
         {
             var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -706,6 +843,8 @@ namespace ProfanityTronStudio
 
         private void StopGeneration(bool force)
         {
+            rangeAutoContinue = false;
+            rangeNextStartKey = null;
             var proc = runningProcess;
             var pid = runningProcessId;
             if (proc == null)

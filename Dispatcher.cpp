@@ -177,16 +177,18 @@ static cl_ulong4 candidatePrivateForRange(
 	cl_ulong4 seed,
 	cl_ulong round,
 	cl_uint foundId,
+	cl_ulong stride,
 	const SearchRange &range)
 {
-	const cl_ulong rangeOffset = static_cast<cl_ulong>(foundId) << range.counterShift;
+	const cl_ulong linearOffset = static_cast<cl_ulong>(foundId) + (round * stride);
+	const cl_ulong rangeOffset = linearOffset << range.counterShift;
 	if (range.counterLane <= 3)
 	{
 		seed.s[range.counterLane] = range.descending
 			? seed.s[range.counterLane] - rangeOffset
 			: seed.s[range.counterLane] + rangeOffset;
 	}
-	return addScalar64(seed, round + 1);
+	return seed;
 }
 
 unsigned int getKernelExecutionTimeMicros(cl_event &e)
@@ -804,7 +806,8 @@ static void printResult(
 	cl_uchar score,
 	const std::chrono::time_point<std::chrono::steady_clock> &timeStart,
 	const Mode & mode,
-	const SearchRange & range)
+	const SearchRange & range,
+	cl_ulong stride)
 {
 	// Time delta
 	const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - timeStart).count();
@@ -813,7 +816,7 @@ static void printResult(
 	cl_ulong4 seedRes = seed;
 	if (range.enabled)
 	{
-		seedRes = candidatePrivateForRange(seed, round, r.foundId, range);
+		seedRes = candidatePrivateForRange(seed, round, r.foundId, stride, range);
 	}
 	else
 	{
@@ -896,7 +899,7 @@ void Dispatcher::onEvent(cl_event event, cl_int status, Device &d)
 			}
 			if (!m_quit && m_range.enabled)
 			{
-				if (m_range.counterMax > 0 && d.m_round >= m_range.counterMax)
+				if (m_range.counterMax > 0 && (d.m_round * static_cast<cl_ulong>(d.m_size)) >= m_range.counterMax)
 				{
 					m_quit = true;
 				}
@@ -924,17 +927,17 @@ void Dispatcher::enqueueResult(Device &d, const result &r, cl_uchar score)
 {
 	{
 		std::lock_guard<std::mutex> lock(m_resultQueueMutex);
-		m_resultQueue.emplace_back(d.m_clSeed, d.m_round, r, score);
+		m_resultQueue.emplace_back(d.m_clSeed, d.m_round, static_cast<cl_ulong>(d.m_size), r, score);
 	}
 	m_resultQueueCv.notify_one();
 }
 
-cl_ulong4 Dispatcher::candidatePrivate(const cl_ulong4 &seed, cl_ulong round, cl_uint foundId) const
+cl_ulong4 Dispatcher::candidatePrivate(const cl_ulong4 &seed, cl_ulong round, cl_ulong stride, cl_uint foundId) const
 {
 	cl_ulong4 seedRes = seed;
 	if (m_range.enabled)
 	{
-		return candidatePrivateForRange(seed, round, foundId, m_range);
+		return candidatePrivateForRange(seed, round, foundId, stride, m_range);
 	}
 
 	seedRes = addScalar64(seedRes, round + 1);
@@ -942,9 +945,9 @@ cl_ulong4 Dispatcher::candidatePrivate(const cl_ulong4 &seed, cl_ulong round, cl
 	return seedRes;
 }
 
-std::string Dispatcher::candidatePrivateHex(const cl_ulong4 &seed, cl_ulong round, cl_uint foundId) const
+std::string Dispatcher::candidatePrivateHex(const cl_ulong4 &seed, cl_ulong round, cl_ulong stride, cl_uint foundId) const
 {
-	const cl_ulong4 seedRes = candidatePrivate(seed, round, foundId);
+	const cl_ulong4 seedRes = candidatePrivate(seed, round, stride, foundId);
 	std::ostringstream ss;
 	ss << std::hex << std::setfill('0');
 	ss << std::setw(16) << seedRes.s[3] << std::setw(16) << seedRes.s[2] << std::setw(16) << seedRes.s[1] << std::setw(16) << seedRes.s[0];
@@ -1013,7 +1016,7 @@ void Dispatcher::processResultQueue()
 {
 	for (;;)
 	{
-		std::tuple<cl_ulong4, cl_ulong, result, cl_uchar> item;
+		std::tuple<cl_ulong4, cl_ulong, cl_ulong, result, cl_uchar> item;
 		{
 			std::unique_lock<std::mutex> lock(m_resultQueueMutex);
 			m_resultQueueCv.wait(lock, [&]() { return m_resultThreadStop || !m_resultQueue.empty(); });
@@ -1031,11 +1034,12 @@ void Dispatcher::processResultQueue()
 
 		const cl_ulong4 seed = std::get<0>(item);
 		const cl_ulong round = std::get<1>(item);
-		const result r = std::get<2>(item);
-		const cl_uchar score = std::get<3>(item);
+		const cl_ulong stride = std::get<2>(item);
+		const result r = std::get<3>(item);
+		const cl_uchar score = std::get<4>(item);
 		if (validateResult(r))
 		{
-			const std::string privateHex = candidatePrivateHex(seed, round, r.foundId);
+			const std::string privateHex = candidatePrivateHex(seed, round, stride, r.foundId);
 			{
 				std::lock_guard<std::mutex> lock(m_mutex);
 				if (!m_seenResultPrivates.insert(privateHex).second)
@@ -1053,13 +1057,13 @@ void Dispatcher::processResultQueue()
 					m_quit = true;
 				}
 			}
-			printResult(seed, round, r, score, timeStart, m_mode, m_range);
-			appendResultToFile(seed, round, r, score);
+			printResult(seed, round, r, score, timeStart, m_mode, m_range, stride);
+			appendResultToFile(seed, round, stride, r, score);
 		}
 	}
 }
 
-void Dispatcher::appendResultToFile(const cl_ulong4 &seed, cl_ulong round, const result &r, cl_uchar score)
+void Dispatcher::appendResultToFile(const cl_ulong4 &seed, cl_ulong round, cl_ulong stride, const result &r, cl_uchar score)
 {
 	if (m_resultsPath.empty())
 	{
@@ -1067,7 +1071,7 @@ void Dispatcher::appendResultToFile(const cl_ulong4 &seed, cl_ulong round, const
 	}
 	createParentDirectories(m_resultsPath);
 
-	const cl_ulong4 seedRes = candidatePrivate(seed, round, r.foundId);
+	const cl_ulong4 seedRes = candidatePrivate(seed, round, stride, r.foundId);
 
 	std::ostringstream privateKey;
 	privateKey << std::hex << std::setfill('0');

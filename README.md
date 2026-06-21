@@ -11,6 +11,7 @@
 3. 在“目标地址编辑”区域维护目标地址，每行一个目标。
 4. 初始私钥、方向、位数都可以留空；留空时使用随机模式。
 5. 指定位数模式只允许 1-16 个十六进制位。全 0 初始私钥会自动跳过无效私钥 `0`。
+6. 初始私钥留空但填写位数/方向时，会使用随机前缀并按位数对齐完整窗口；方向留空时只在任务开始时随机一次，自动续跑沿用该方向。
 
 ### 发布包内容
 
@@ -24,12 +25,12 @@
 ### 本地构建
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.17
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.18
 ```
 
 如果 Windows Application Control / 企业策略要求签名，可传入 `-SignThumbprint` 或 `-SignPfxPath/-SignPfxPassword`。
 
-生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.17.zip`。开发 profiling 构建可额外传入 `-DebugNative`。
+生成结果位于 `dist/`，发布 zip 为 `dist/shiyi-v1.0.18.zip`。开发 profiling 构建可额外传入 `-DebugNative`。
 
 ### 当前验证
 
@@ -40,6 +41,7 @@ RTX 3070 当前可信样本：
 - Debug profiling 样本：iterate 约 66.1 ms，inverse 约 38.5 ms，score 约 24.7 ms
 - 默认调参输出：`work = 32`，`inverse-multiple = 196608`
 - v1.0.17 最终合法目标 5 秒冒烟：352.834 MH/s；非法 `0` 目标会被拒绝
+- v1.0.18 修复 range 重复扫描和启动器随机位数/方向续跑逻辑；本机新编译 exe 被 Application Control 拦截，未声明 1 分钟性能结果
 
 400 MH/s 目标尚未达成，需要继续优化。
 
@@ -56,6 +58,7 @@ This is a Windows / OpenCL Tron vanity address generator. The Windows launcher i
 3. Edit targets in the target editor area, one target per line.
 4. Initial private key, direction, and digit count are optional; leave them blank for random mode.
 5. Fixed-digit mode is limited to 1-16 hex digits. An all-zero initial private key automatically skips invalid private key `0`.
+6. When the initial key is blank but digit count or direction is set, the launcher uses a random prefix and aligns a full digit window; blank direction is randomized once at task start and reused by auto-continued windows.
 
 ### Package Contents
 
@@ -69,12 +72,12 @@ This is a Windows / OpenCL Tron vanity address generator. The Windows launcher i
 ### Local Build
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.17
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 -Version v1.0.18
 ```
 
 If Windows Application Control or an enterprise policy requires signing, pass `-SignThumbprint` or `-SignPfxPath/-SignPfxPassword`.
 
-Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.17.zip`. Add `-DebugNative` for a development profiling build.
+Build outputs are written to `dist/`; the release zip is `dist/shiyi-v1.0.18.zip`. Add `-DebugNative` for a development profiling build.
 
 ### Current Verification
 
@@ -85,6 +88,7 @@ Current trusted RTX 3070 samples:
 - Debug profiling sample: iterate about 66.1 ms, inverse about 38.5 ms, score about 24.7 ms
 - Default tuning output: `work = 32`, `inverse-multiple = 196608`
 - v1.0.17 final valid-target 5-second smoke: 352.834 MH/s; invalid `0` targets are rejected
+- v1.0.18 fixes range duplicate scanning and launcher random digit/direction auto-continue behavior; the freshly built local exe is blocked by Application Control, so no 1-minute performance result is claimed
 
 The 400 MH/s target has not been reached yet and needs further optimization.
 

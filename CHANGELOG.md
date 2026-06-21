@@ -1,5 +1,18 @@
 # Version Record
 
+## v1.0.18 - 2026-06-21
+
+- 中文：修复有限 range 模式重复扫描问题；range 候选私钥现在按 `round * deviceSize + id` 推进，覆盖完当前窗口后退出，避免小位数窗口反复扫同一批候选。
+- English: Fixed duplicate scanning in finite range mode; range candidates now advance by `round * deviceSize + id` and stop after the current window is covered, avoiding repeated scans of the same small fixed-digit window.
+- 中文：启动器在初始私钥留空但填写位数/方向时，会先生成随机前缀，再按位数和方向把低位窗口对齐到完整起点；随机位数现在实际生效。
+- English: When the launcher has an empty initial key but a digit count or direction is set, it now generates a random prefix and aligns the low digit window to a full start boundary based on digit count and direction; random fixed-digit mode now takes effect.
+- 中文：方向留空时只在任务开始时随机一次；自动续跑沿用同一方向，停止任务会关闭自动续跑，避免用户停止后又进入下一窗口。
+- English: When direction is blank, the launcher randomizes it once at task start; auto-continued windows keep that direction, and stopping a task disables auto-continue so it cannot restart unexpectedly.
+- 中文：增加 `scripts/test-range-planner.ps1`，长期记录并验证 16 位向上进位、随机位数对齐、方向续用、停止禁用自动续跑，以及小于 8/等于 8/大于 8 位数分支存在。
+- English: Added `scripts/test-range-planner.ps1` to persistently verify 16-digit upward carry, random digit alignment, direction reuse, stop disabling auto-continue, and the explicit `<8`, `=8`, and `>8` digit branches.
+- 中文：v1.0.18 构建通过，发布包内容和默认目标校验通过，未发现残留进程；本机直接运行新编译 `shiyi.exe` 仍被 Application Control 策略拦截，因此本轮不声明 1 分钟性能结果。
+- English: v1.0.18 builds successfully, package contents and default targets validate, and no residual processes were found; direct execution of the freshly built `shiyi.exe` is still blocked by Application Control on this machine, so this release does not claim a 1-minute performance result.
+
 ## v1.0.17 - 2026-06-21
 
 - 中文：启动器读取旧 `runtime/targets.txt` 时会校验每一行目标，发现 `[银行卡]`、`0` 或其他非 TRON/Base58 字符时自动回退到合法默认目标。
