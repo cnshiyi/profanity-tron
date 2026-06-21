@@ -772,13 +772,18 @@ void Dispatcher::dispatch(Device &d)
 #ifdef PROFANITY_DEBUG
 	cl_event eventInverse;
 	cl_event eventIterate;
+	cl_event eventScore;
 	enqueueKernelDevice(d, d.m_kernelInverse, d.m_size / d.m_inverseSize, &eventInverse);
 	enqueueKernelDevice(d, d.m_kernelIterate, d.m_size, &eventIterate);
 #else
 	enqueueKernelDevice(d, d.m_kernelInverse, d.m_size / d.m_inverseSize);
 	enqueueKernelDevice(d, d.m_kernelIterate, d.m_size);
 #endif
+#ifdef PROFANITY_DEBUG
+	enqueueKernelDevice(d, d.m_kernelScore, d.m_size, &eventScore);
+#else
 	enqueueKernelDevice(d, d.m_kernelScore, d.m_size);
+#endif
 	d.m_memResult.read(false, &event);
 	clFlush(d.m_clQueue);
 #ifdef PROFANITY_DEBUG
@@ -786,7 +791,7 @@ void Dispatcher::dispatch(Device &d)
 	// However, this happens to work on my computer and it's not really intended for release, just something to aid me in
 	// optimizations.
 	clFinish(d.m_clQueue);
-	std::cout << "Timing: profanity_inverse = " << getKernelExecutionTimeMicros(eventInverse) << "us, profanity_iterate = " << getKernelExecutionTimeMicros(eventIterate) << "us" << std::endl;
+	std::cout << "Timing: profanity_inverse = " << getKernelExecutionTimeMicros(eventInverse) << "us, profanity_iterate = " << getKernelExecutionTimeMicros(eventIterate) << "us, profanity_score = " << getKernelExecutionTimeMicros(eventScore) << "us" << std::endl;
 #endif
 	const auto res = clSetEventCallback(event, CL_COMPLETE, staticCallback, &d);
 	OpenCLException::throwIfError("failed to set custom callback", res);

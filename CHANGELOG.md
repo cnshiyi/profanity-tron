@@ -1,5 +1,16 @@
 # Version Record
 
+## v1.0.16 - 2026-06-21
+
+- 中文：为 Windows 构建脚本增加 `-DebugNative` 开关，用于编译带 `PROFANITY_DEBUG` 的 profiling 版本，不影响默认发布构建。
+- English: Added a `-DebugNative` switch to the Windows build script for compiling a `PROFANITY_DEBUG` profiling build without changing the default release build.
+- 中文：debug profiling 现在同时输出 inverse、iterate 和 score 三段 OpenCL kernel 时间；RTX 3070 样本显示 iterate 约 66.1 ms、inverse 约 38.5 ms、score 约 24.7 ms。
+- English: Debug profiling now prints inverse, iterate, and score OpenCL kernel timings; RTX 3070 samples measured roughly 66.1 ms for iterate, 38.5 ms for inverse, and 24.7 ms for score.
+- 中文：补做线上 v1.0.15 发行包 1 分钟串行基线：随机后 8 位 383.908 MH/s，后 16 位向上 range 383.174 MH/s，均未达到 400 MH/s。
+- English: Added serial 1-minute reference baselines from the online v1.0.15 release package: random last-8 reached 383.908 MH/s, and last-16 upward range reached 383.174 MH/s; neither reached 400 MH/s.
+- 中文：本轮拒绝无稳定收益实验：benchmark 跳过结果清零、SHA256 局部清零、OpenCL build options、`negativeGx` 常量区实验均未带来 60 秒稳定提升。
+- English: Rejected experiments without stable gains: skipping result clearing in benchmark mode, partial SHA256 clearing, OpenCL build options, and the `negativeGx` constant-memory experiment did not produce stable 60-second improvement.
+
 ## v1.0.15 - 2026-06-21
 
 - 中文：修复默认目标地址，移除 TRON/Base58 地址不支持的 `0` 目标，改为 `1-9 + A` 的 10 行默认目标；源码、`dist/profanity.txt` 和 `dist/runtime/targets.txt` 已保持一致。
